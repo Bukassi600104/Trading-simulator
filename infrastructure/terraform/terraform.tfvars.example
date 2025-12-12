@@ -1,0 +1,63 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# TERMINAL ZERO - Terraform Variables (Staging Environment)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Copy this file to terraform.tfvars and customize for your environment
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Project Settings
+# ─────────────────────────────────────────────────────────────────────────────
+project_name = "terminal-zero"
+environment  = "staging"
+aws_region   = "us-east-1"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VPC Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Database Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+db_instance_class    = "db.t3.medium"
+db_allocated_storage = 100
+db_name              = "terminal_zero"
+db_username          = "tzadmin"
+# db_password is auto-generated - see Secrets Manager
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Redis Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+redis_node_type     = "cache.t3.medium"
+redis_num_nodes     = 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ECS Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# API Service
+api_cpu           = 512    # 0.5 vCPU
+api_memory        = 1024   # 1 GB
+api_desired_count = 2
+
+# Worker Service  
+worker_cpu           = 256   # 0.25 vCPU
+worker_memory        = 512   # 0.5 GB
+worker_desired_count = 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SSL/TLS Certificate
+# ─────────────────────────────────────────────────────────────────────────────
+# IMPORTANT: You must create an ACM certificate for your domain first
+# See: https://docs.aws.amazon.com/acm/latest/userguide/gs-acm-request-public.html
+acm_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Security
+# ─────────────────────────────────────────────────────────────────────────────
+enable_waf = true
+allowed_origins = [
+  "https://your-domain.com",
+  "https://staging.your-domain.com",
+  "http://localhost:3000"
+]
