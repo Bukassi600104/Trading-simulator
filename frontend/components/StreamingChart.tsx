@@ -252,7 +252,8 @@ export default function StreamingChart({ symbol = "BTCUSDT", onPriceUpdate }: St
     }, [selectedTimeframe]);
 
     const connectWebSocket = (interval: string) => {
-        const wsUrl = `ws://localhost:8000/ws/ticker/${symbol}?interval=${interval}`;
+        const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+        const wsUrl = `${wsBase}/ws/ticker/${symbol}?interval=${interval}`;
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 

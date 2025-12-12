@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
 import AuthModal from "@/components/AuthModal";
+import Navbar from "@/components/layout/Navbar";
 import {
-  createChart,
-  IChartApi,
-  ISeriesApi,
-  CandlestickData,
-  Time,
-  LineStyle,
+    CandlestickData,
+    CandlestickSeries,
+    createChart,
+    IChartApi,
+    ISeriesApi,
+    LineStyle,
+    Time,
 } from "lightweight-charts";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface CandleData {
   time: number;
@@ -107,8 +108,7 @@ export default function ReplayPage() {
       height: 500,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const candleSeries = (chart as any).addCandlestickSeries({
+    const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#10B981",
       downColor: "#EF4444",
       borderUpColor: "#10B981",
