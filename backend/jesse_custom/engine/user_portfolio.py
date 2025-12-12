@@ -258,8 +258,24 @@ class UserPortfolio:
                     liquidated_symbols.append(symbol)
         
         self._update_watermark()
+        
+        # Check Prop Drawdown (5% Max Trailing)
+        if self.check_prop_failure():
+            self.is_liquidated = True
+            self.is_active = False
+            # Close all positions?
+            # For now just flag it.
+            
         return liquidated_symbols
     
+    def check_prop_failure(self) -> bool:
+        """
+        Check if portfolio has breached prop firm rules.
+        Rule: Equity < High Watermark * 0.95 (5% Max Trailing Drawdown)
+        """
+        drawdown_limit = self.max_equity_watermark * Decimal("0.95")
+        return self.equity < drawdown_limit
+
     def _liquidate_position(self, symbol: str) -> None:
         """Handle position liquidation"""
         position = self.positions.get(symbol)

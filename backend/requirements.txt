@@ -46,3 +46,7 @@ loguru>=0.7.2               # Structured logging
 # --- Logging (retained from original) ---
 loguru>=0.7.2               # Enhanced logging
 python-dotenv>=1.0.0        # Environment variable loading
+
+# --- Middleware & Monitoring ---
+sentry-sdk>=1.45.0          # Error tracking
+slowapi>=0.1.9              # Rate limiting

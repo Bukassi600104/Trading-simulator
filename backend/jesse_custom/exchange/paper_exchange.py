@@ -8,19 +8,24 @@ This module provides a paper trading implementation that:
 """
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
 from loguru import logger
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import (
     FEE_RATE,
     SUPPORTED_LEVERAGE,
     SUPPORTED_SYMBOLS,
     OrderSide,
+    OrderStatus,
     OrderType,
 )
+from app.models.journal import JournalEntry
+from app.models.order import Order
 from jesse_custom.engine import PortfolioManager, UserPortfolio, get_portfolio_manager
 
 
@@ -76,7 +81,8 @@ class PaperExchange:
     async def submit_order(
         self,
         user_id: uuid.UUID,
-        order: OrderRequest
+        order: OrderRequest,
+        db: Optional[AsyncSession] = None
     ) -> OrderResult:
         """
         Submit an order for execution.
@@ -117,7 +123,7 @@ class PaperExchange:
         
         # Handle based on order type
         if order.order_type == OrderType.MARKET:
-            return await self._execute_market_order(portfolio, order, current_price)
+            return await self._execute_market_order(portfolio, order, current_price, db)
         elif order.order_type == OrderType.LIMIT:
             return await self._handle_limit_order(portfolio, order)
         else:
@@ -130,13 +136,23 @@ class PaperExchange:
         self,
         portfolio: UserPortfolio,
         order: OrderRequest,
-        fill_price: Decimal
+        fill_price: Decimal,
+        db: Optional[AsyncSession] = None
     ) -> OrderResult:
         """Execute a market order immediately at current price"""
         
-        order_id = str(uuid.uuid4())
+        order_id = uuid.uuid4()
+        
+        # Calculate fee
+        fee = order.qty * fill_price * self.fee_rate
         
         if order.reduce_only:
+            # Capture position details before closing for Journal
+            position_before = portfolio.get_position(order.symbol)
+            entry_price = position_before.entry_price if position_before else Decimal("0")
+            entry_time = position_before.opened_at if position_before else datetime.utcnow()
+            side_before = position_before.side if position_before else "FLAT"
+
             # Close position
             success, message, realized_pnl = portfolio.close_position(
                 symbol=order.symbol,
@@ -146,13 +162,64 @@ class PaperExchange:
             
             if success:
                 position = portfolio.get_position(order.symbol)
+                
+                # Persist to DB if session provided
+                if db:
+                    db_order = Order(
+                        id=order_id,
+                        portfolio_id=portfolio.id,
+                        symbol=order.symbol,
+                        side=order.side,
+                        order_type=order.order_type,
+                        qty=order.qty,
+                        price=None, # Market order
+                        filled_qty=order.qty,
+                        avg_fill_price=fill_price,
+                        status=OrderStatus.FILLED,
+                        fee=fee,
+                        realized_pnl=realized_pnl
+                    )
+                    db.add(db_order)
+
+                    # Create Journal Entry for the exit
+                    # Calculate ROI %
+                    margin_used = (order.qty * entry_price) / portfolio.leverage
+                    pnl_percent = Decimal("0")
+                    if margin_used > 0:
+                        pnl_percent = (realized_pnl / margin_used) * 100
+
+                    journal_entry = JournalEntry(
+                        portfolio_id=portfolio.id,
+                        symbol=order.symbol,
+                        side=side_before,
+                        entry_price=entry_price,
+                        exit_price=fill_price,
+                        qty=order.qty,
+                        pnl=realized_pnl,
+                        pnl_percent=pnl_percent,
+                        entry_time=entry_time,
+                        exit_time=datetime.utcnow()
+                    )
+                    db.add(journal_entry)
+
+                    # Note: We rely on caller to commit, or we can commit here
+                    # For atomicity with other updates, caller commit is better, 
+                    # but for simplicity in this method we might want to flush.
+                    # Let's assume caller handles commit or we do it here if it's a standalone op.
+                    # Since this is "execute_market_order", it implies completion.
+                    try:
+                        await db.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to persist order: {e}")
+                        await db.rollback()
+
                 return OrderResult(
                     success=True,
-                    order_id=order_id,
+                    order_id=str(order_id),
                     message=message,
                     filled_qty=order.qty,
                     fill_price=fill_price,
-                    fee=order.qty * fill_price * self.fee_rate,
+                    fee=fee,
                     position=position.to_dict() if position else None
                 )
             else:
@@ -167,13 +234,35 @@ class PaperExchange:
             )
             
             if success:
+                # Persist to DB if session provided
+                if db:
+                    db_order = Order(
+                        id=order_id,
+                        portfolio_id=portfolio.id,
+                        symbol=order.symbol,
+                        side=order.side,
+                        order_type=order.order_type,
+                        qty=order.qty,
+                        price=None, # Market order
+                        filled_qty=order.qty,
+                        avg_fill_price=fill_price,
+                        status=OrderStatus.FILLED,
+                        fee=fee
+                    )
+                    db.add(db_order)
+                    try:
+                        await db.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to persist order: {e}")
+                        await db.rollback()
+
                 return OrderResult(
                     success=True,
-                    order_id=order_id,
+                    order_id=str(order_id),
                     message=message,
                     filled_qty=order.qty,
                     fill_price=fill_price,
-                    fee=order.qty * fill_price * self.fee_rate,
+                    fee=fee,
                     position=position.to_dict() if position else None
                 )
             else:

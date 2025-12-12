@@ -5,22 +5,42 @@ and multi-user paper trading support
 """
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from decimal import Decimal
 
+import sentry_sdk
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.api import trading_router
 from app.api.auth import router as auth_router
+from app.api.journal import router as journal_router
+from app.api.payments import router as payments_router
+from app.api.admin import router as admin_router
 from app.core.database import init_db
+from app.core.middleware import LatencyGuardMiddleware
+from app.jobs.leaderboard import update_leaderboard
 from jesse_custom.engine import get_portfolio_manager
 from jesse_custom.exchange import get_paper_exchange
 from services.market_stream import MarketStreamService
 
 # Global services
 market_stream: MarketStreamService = None
+
+# Initialize Sentry
+if os.getenv("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN"),
+        traces_sample_rate=1.0,
+    )
+
+# Initialize Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 def convert_bybit_symbol(bybit_symbol: str) -> str:
@@ -57,6 +77,9 @@ async def lifespan(app: FastAPI):
     # Start price update forwarder
     asyncio.create_task(price_update_forwarder())
     
+    # Start scheduled jobs
+    asyncio.create_task(scheduler_loop())
+    
     logger.info("📈 Portfolio Manager initialized")
     logger.info("📜 Paper Exchange initialized")
     
@@ -66,6 +89,18 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down Terminal Zero API...")
     if market_stream:
         await market_stream.stop()
+
+
+async def scheduler_loop():
+    """Run scheduled jobs"""
+    while True:
+        try:
+            await update_leaderboard()
+        except Exception as e:
+            logger.error(f"Scheduler error: {e}")
+        
+        # Run every hour
+        await asyncio.sleep(3600)
 
 
 async def price_update_forwarder():
@@ -121,6 +156,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Register Rate Limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Middleware
+app.add_middleware(LatencyGuardMiddleware)
+
 # CORS configuration for frontend
 app.add_middleware(
     CORSMiddleware,
@@ -133,6 +175,9 @@ app.add_middleware(
 # Include trading routes
 app.include_router(trading_router)
 app.include_router(auth_router)
+app.include_router(journal_router)
+app.include_router(payments_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")

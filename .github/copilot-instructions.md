@@ -21,6 +21,7 @@ Bybit WS → MarketStreamService → asyncio.Queue → PortfolioManager → WS �
 | DB Models | `backend/app/models/` | SQLAlchemy async models (PostgreSQL) |
 | Market Data | `backend/services/market_stream.py` | Bybit WebSocket + REST client |
 | Frontend State | `frontend/stores/authStore.ts` | Zustand with persistence |
+| Frontend Charts | `frontend/components/StreamingChart.tsx` | Real-time Lightweight Charts |
 
 ## Development Commands
 ```bash
@@ -35,6 +36,9 @@ cd frontend && npm run dev
 
 # Database migrations
 cd backend && alembic upgrade head
+
+# Run Backend Tests
+cd backend && pytest
 ```
 
 ## Essential Patterns
@@ -106,12 +110,21 @@ router = APIRouter(prefix="/api/feature", tags=["feature"])
 # Register in main.py
 app.include_router(your_feature_router)
 ```
-
+ - handles direct WS connection
 ## Frontend Stack
 - **Framework**: Next.js 14 (App Router) - pages in `frontend/app/`
 - **Charts**: TradingView Lightweight Charts (`StreamingChart.tsx`)
 - **State**: Zustand with persist middleware (`stores/authStore.ts`)
 - **API URL**: `NEXT_PUBLIC_API_URL` env var, defaults to `http://localhost:8000`
+
+## Testing Strategy
+- **Backend**: `pytest` in `backend/tests/`
+  - `test_order_execution.py`: Critical trading math (margin, PnL)
+  - `test_pnl_calculations.py`: Profit/Loss verification
+- **Frontend**: Manual verification via `npm run dev` (currently)
+
+## Future Phases
+- `worker/`: Reserved for Phase 4 (Jesse Trading Engine integration for backtesting)
 
 ## Common Pitfalls
 - **Don't** modify standard Jesse package - only edit `jesse_custom/`
@@ -120,10 +133,22 @@ app.include_router(your_feature_router)
 - **Do** use `loguru.logger` for logging (not stdlib `logging`)
 - **Do** validate UUIDs: `uuid.UUID(user_id)` can raise `ValueError`
 
-## Database
-- PostgreSQL 15 with async driver (`asyncpg`)
-- Alembic migrations in `backend/alembic/versions/`
-- Session dependency: `Depends(get_session)` in FastAPI routes
+## Database Schema (PostgreSQL)
+- **User** (`users`): Core identity. `tier` enum determines features (FREE, PRO).
+- **Portfolio** (`portfolios`): 1:1 with User. Stores `balance`, `leverage`.
+- **Position** (`positions`): 1:N with Portfolio. Active trades. `side` (LONG/SHORT).
+- **Order** (`orders`): 1:N with Portfolio. History & active orders.
+- **Relationships**: `User` -> `Portfolio` -> `Position` / `Order`
+- **Note**: All IDs are UUIDs. Financials use `Numeric(18, 8)`.
+
+## Authentication Flow
+- **Method**: JWT (HS256) via `HTTPBearer`.
+- **Routes**:
+  - `POST /api/auth/login` -> Returns `access_token`
+  - `POST /api/auth/demo` -> Returns token for demo UUID
+- **Security**: `backend/app/core/security.py` handles hashing (bcrypt) & validation.
+- **Frontend**: `authStore.ts` persists token in localStorage.
+- **Protected Routes**: Use `Depends(require_auth)` in FastAPI.
 
 ## Reference Docs
 - `Simulator.md` - Product requirements

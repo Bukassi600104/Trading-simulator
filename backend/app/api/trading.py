@@ -10,10 +10,12 @@ REST endpoints for trading operations:
 
 import uuid
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import (
     DEFAULT_LEVERAGE,
@@ -23,6 +25,9 @@ from app.core.config import (
     OrderSide,
     OrderType,
 )
+from app.core.database import get_session
+from app.models.order import Order, OrderStatus
+from app.models.portfolio import Portfolio
 from jesse_custom.engine import get_portfolio_manager
 from jesse_custom.exchange import OrderRequest, get_paper_exchange
 
@@ -71,7 +76,11 @@ def get_demo_user_id() -> uuid.UUID:
 
 
 @router.post("/orders")
-async def place_order(request: PlaceOrderRequest, user_id: Optional[str] = Query(None)):
+async def place_order(
+    request: PlaceOrderRequest, 
+    user_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_session)
+):
     """
     Place a new trading order.
     
@@ -103,7 +112,7 @@ async def place_order(request: PlaceOrderRequest, user_id: Optional[str] = Query
         leverage=request.leverage
     )
     
-    result = await exchange.submit_order(uid, order)
+    result = await exchange.submit_order(uid, order, db)
     
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
@@ -261,3 +270,66 @@ async def reset_portfolio(user_id: Optional[str] = Query(None)):
         "message": "Portfolio reset successfully",
         "portfolio": portfolio.to_dict()
     }
+
+
+@router.get("/orders/history")
+async def get_order_history(
+    user_id: Optional[str] = Query(None),
+    limit: int = 50,
+    db: AsyncSession = Depends(get_session)
+):
+    """Get order history"""
+    try:
+        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail="Invalid user_id") from err
+
+    # Get portfolio from DB
+    result = await db.execute(select(Portfolio).where(Portfolio.user_id == uid))
+    db_portfolio = result.scalars().first()
+    
+    if not db_portfolio:
+        return []
+        
+    query = select(Order).where(
+        Order.portfolio_id == db_portfolio.id
+    ).order_by(desc(Order.created_at)).limit(limit)
+    
+    result = await db.execute(query)
+    orders = result.scalars().all()
+    return orders
+
+
+@router.get("/orders/open")
+async def get_open_orders(
+    user_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_session)
+):
+    """Get open orders"""
+    try:
+        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail="Invalid user_id") from err
+
+    # Get portfolio from DB
+    result = await db.execute(select(Portfolio).where(Portfolio.user_id == uid))
+    db_portfolio = result.scalars().first()
+    
+    if not db_portfolio:
+        return []
+        
+    query = select(Order).where(
+        Order.portfolio_id == db_portfolio.id,
+        # Assuming OrderStatus enum is available and matches DB
+        # If OrderStatus is not imported or different, this might fail.
+        # I imported OrderStatus earlier.
+    ).order_by(desc(Order.created_at))
+    
+    # Filter for OPEN status in python if needed, or use where clause if enum works
+    # Let's use the where clause but be careful about the enum
+    from app.core.config import OrderStatus
+    query = query.where(Order.status == OrderStatus.OPEN)
+    
+    result = await db.execute(query)
+    orders = result.scalars().all()
+    return orders

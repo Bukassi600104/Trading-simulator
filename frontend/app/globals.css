@@ -463,6 +463,54 @@
   .modal-content { background: var(--surface); border-radius: var(--radius-xl); border: 1px solid var(--border-subtle); @apply shadow-2xl max-w-lg w-full mx-4; }
   .order-btn-buy { @apply flex-1 py-3 rounded-lg font-semibold text-white; background: linear-gradient(135deg, var(--profit-500), var(--profit-600)); }
   .order-btn-sell { @apply flex-1 py-3 rounded-lg font-semibold text-white; background: linear-gradient(135deg, var(--loss-500), var(--loss-600)); }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     TRADE PAGE LAYOUT
+     ═══════════════════════════════════════════════════════════════════════ */
+  .trade-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--void);
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+
+  .trade-layout {
+    display: grid;
+    grid-template-columns: 60px 1fr 320px; /* Sidebar, Main, OrderPanel */
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-subtle);
+    overflow: hidden;
+  }
+
+  .chart-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--border-subtle);
+    min-height: 0; /* Fix flex overflow */
+  }
+
+  .bottom-panel {
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+    background: var(--abyss);
+  }
+
+  .right-sidebar {
+    background: var(--surface);
+    border-left: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 @layer utilities {

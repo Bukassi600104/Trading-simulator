@@ -12,6 +12,12 @@ FEE_RATE = Decimal("0.0006")  # 0.06% like Bybit
 # Supported trading pairs
 SUPPORTED_SYMBOLS = ["BTC-USDT", "ETH-USDT"]
 
+# Payment Configuration (NGN)
+TIER_PRICES = {
+    "PRO": Decimal("5000.00"),
+    "PROP_CHALLENGE": Decimal("15000.00")
+}
+
 
 class UserTier(str, Enum):
     FREE = "FREE"
