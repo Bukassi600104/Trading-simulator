@@ -1,0 +1,79 @@
+[tool.poetry]
+name = "trading-simulator-backend"
+version = "0.1.0"
+description = "FastAPI backend for Trading SaaS"
+authors = ["Tony Orjiako"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
+select = ["E", "F", "B", "I"]
+# B008: Depends() in defaults is a valid FastAPI pattern
+ignore = ["B008"]
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F", "G", "I", "N", "Q", "S", "T", "W", "ANN", "ARG", "BLE", "COM", "DJ", "DTZ", "EM", "ERA", "EXE", "FBT", "ICN", "INP", "ISC", "NPY", "PD", "PGH", "PIE", "PL", "PT", "PTH", "PYI", "RET", "RSE", "RUF", "SIM", "SLF", "TCH", "TID", "TRY", "UP", "YTT"]
+unfixable = []
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    # Exclude forked Jesse Trading Engine library files (third-party code)
+    "jesse_custom/strategies",
+    "jesse_custom/indicators",
+    "jesse_custom/libs",
+    "jesse_custom/modes",
+    "jesse_custom/models",
+    "jesse_custom/research",
+    "jesse_custom/routes",
+    "jesse_custom/services",
+    "jesse_custom/store",
+    "jesse_custom/static",
+    "jesse_custom/controllers",
+    "jesse_custom/exchanges",
+    "jesse_custom/factories",
+    "jesse_custom/exceptions",
+    "jesse_custom/enums",
+    "jesse_custom/testing_utils.py",
+    "jesse_custom/utils.py",
+    "jesse_custom/helpers.py",
+    "jesse_custom/info.py",
+    "jesse_custom/math_utils.py",
+    "jesse_custom/version.py",
+]
+line-length = 88
+target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+python_files = "test_*.py"

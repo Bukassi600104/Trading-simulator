@@ -1,0 +1,172 @@
+import jesse.helpers as jh
+from jesse.enums import exchanges
+from jesse.info import exchange_info
+from jesse.modes.utils import get_exchange_type
+
+# Main configuration used by the Jesse framework. These values are modified
+# at runtime based on the mode (backtest, live, or optimize) and user settings.
+config = {
+    # these values are related to the user's environment
+    'env': {
+        'caching': {
+            'driver': 'pickle'
+        },
+
+        'logging': {
+            'strategy_execution': True,
+            'order_submission': True,
+            'order_cancellation': True,
+            'order_execution': True,
+            'position_opened': True,
+            'position_increased': True,
+            'position_reduced': True,
+            'position_closed': True,
+            'shorter_period_candles': False,
+            'trading_candles': True,
+            'balance_update': True,
+            'exchange_ws_reconnection': True
+        },
+
+        # fill it later in this file using data in info.py
+        'exchanges': {
+            exchanges.SANDBOX: {
+                'fee': 0,
+                'type': 'futures',
+                # accepted values are: 'cross' and 'isolated'
+                'futures_leverage_mode': 'cross',
+                # 1x, 2x, 10x, 50x, etc. Enter as integers
+                'futures_leverage': 1,
+                'balance': 10_000,
+            },
+        },
+
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # Optimize mode (using Optuna)
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        #
+        # Below configurations are related to the optimize mode
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        'optimization': {
+            # available ratio options: sharpe, calmar, sortino, omega,
+            # serenity, smart sharpe, smart sortino
+            'objective_function': 'sharpe',
+            # number of trials per each hyperparameter
+            'trials': 200,
+        },
+
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # Data
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        #
+        # Below configurations are related to the data
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        'data': {
+            # The minimum number of warmup candles that is loaded before each session.
+            'warmup_candles_num': 240,
+            'generate_candles_from_1m': False,
+            'persistency': True,
+        },
+    },
+
+    # These values are just placeholders used by Jesse at runtime
+    'app': {
+        # list of currencies to consider
+        'considering_symbols': [],
+        # The symbol to trade.
+        'trading_symbols': [],
+
+        # list of time frames to consider
+        'considering_timeframes': [],
+        # Which candle type do you intend trade on
+        'trading_timeframes': [],
+
+        # list of exchanges to consider
+        'considering_exchanges': [],
+        # list of exchanges to consider
+        'trading_exchanges': [],
+
+        'considering_candles': [],
+
+        # dict of registered live trade drivers
+        'live_drivers': {},
+
+        # Accepted values are: 'backtest', 'livetrade', 'fitness'.
+        'trading_mode': '',
+
+        # Enable console.log()s for debugging.
+        'debug_mode': False,
+
+        # this is only used for the live unit tests
+        'is_unit_testing': False,
+    },
+}
+
+# set exchange config values based on the info
+for key in exchange_info:
+    config['env']['exchanges'][key] = {
+        'fee': exchange_info[key]['fee'],
+        'type': exchange_info[key]['type'],
+        'futures_leverage_mode': 'cross',
+        'futures_leverage': 1,
+        'balance': 10_000
+    }
+
+
+def set_config(conf: dict) -> None:
+    global config
+
+    # optimization mode only
+    if jh.is_optimizing():
+        # objective function
+        if 'objective_function' in conf:
+            objective_fn = conf['objective_function']
+            config['env']['optimization']['objective_function'] = objective_fn
+        # warm_up_candles
+        config['env']['data']['warmup_candles_num'] = int(conf['warm_up_candles'])
+        # number of trials per each hyperparameter
+        config['env']['optimization']['trials'] = int(conf['trials'])
+
+    # backtest and live
+    if jh.is_backtesting() or jh.is_live():
+        # warm_up_candles
+        config['env']['data']['warmup_candles_num'] = int(conf['warm_up_candles'])
+        # logs
+        config['env']['logging'] = conf['logging']
+        # exchanges
+        for _key, e in conf['exchanges'].items():
+            if not jh.is_live() and e['type']:
+                exchange_type = e['type']
+            else:
+                exchange_type = get_exchange_type(e['name'])
+            config['env']['exchanges'][e['name']] = {
+                'fee': float(e['fee']),
+                'type': exchange_type,
+                'balance': float(e['balance'])
+            }
+            if config['env']['exchanges'][e['name']]['type'] == 'futures':
+                # 1x, 2x, 10x, 50x, etc. Enter as integers
+                leverage = int(e.get('futures_leverage', 1))
+                config['env']['exchanges'][e['name']]['futures_leverage'] = leverage
+                # accepted values are: 'cross' and 'isolated'
+                leverage_mode = e.get('futures_leverage_mode', 'cross')
+                config['env']['exchanges'][e['name']]['futures_leverage_mode'] = (
+                    leverage_mode
+                )
+
+    # live mode only
+    if jh.is_live():
+        config['env']['notifications'] = conf['notifications']
+        config['env']['data']['persistency'] = conf['persistency']
+        gen_candles = conf['generate_candles_from_1m']
+        config['env']['data']['generate_candles_from_1m'] = gen_candles
+
+    # TODO: must become a config value later when we go after multi account support?
+    config['env']['identifier'] = 'main'
+
+
+def reset_config() -> None:
+    global config
+    config = backup_config.copy()
+
+
+backup_config = config.copy()

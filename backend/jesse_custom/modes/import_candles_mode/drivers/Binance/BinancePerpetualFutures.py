@@ -1,0 +1,14 @@
+from jesse.enums import exchanges
+
+from .BinanceMain import BinanceMain
+
+
+class BinancePerpetualFutures(BinanceMain):
+    def __init__(self) -> None:
+        from .BinanceSpot import BinanceSpot
+
+        super().__init__(
+            name=exchanges.BINANCE_PERPETUAL_FUTURES,
+            rest_endpoint='https://fapi.binance.com/fapi',
+            backup_exchange_class=BinanceSpot
+        )
