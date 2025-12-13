@@ -44,6 +44,9 @@ class PlaceOrderRequest(BaseModel):
     price: Optional[Decimal] = Field(
         None, description="Limit price (for limit orders)"
     )
+    stop_price: Optional[Decimal] = Field(
+        None, description="Stop trigger price (for stop orders)"
+    )
     reduce_only: bool = Field(default=False, description="Close position only")
     leverage: Optional[int] = Field(
         None, description="Override leverage for this trade"
@@ -99,6 +102,18 @@ async def place_order(
             status_code=400,
             detail=f"Leverage must be one of: {SUPPORTED_LEVERAGE}"
         )
+
+    # Validate order-type-specific fields
+    if request.order_type == OrderType.LIMIT and request.price is None:
+        raise HTTPException(status_code=400, detail="Limit orders require price")
+
+    if request.order_type == OrderType.STOP:
+        # Backward compatible: older clients may send stop trigger as `price`
+        if request.stop_price is None and request.price is not None:
+            request.stop_price = request.price
+            request.price = None
+        if request.stop_price is None:
+            raise HTTPException(status_code=400, detail="Stop orders require stop_price")
     
     exchange = get_paper_exchange()
     
@@ -108,6 +123,7 @@ async def place_order(
         order_type=request.order_type,
         qty=request.qty,
         price=request.price,
+        stop_price=request.stop_price,
         reduce_only=request.reduce_only,
         leverage=request.leverage
     )
@@ -120,9 +136,9 @@ async def place_order(
     return {
         "success": True,
         "order_id": result.order_id,
-        "filled_qty": str(result.filled_qty),
-        "fill_price": str(result.fill_price),
-        "fee": str(result.fee),
+        "filled_qty": str(result.filled_qty) if result.filled_qty is not None else None,
+        "fill_price": str(result.fill_price) if result.fill_price is not None else None,
+        "fee": str(result.fee) if result.fee is not None else None,
         "position": result.position,
         "message": result.message
     }

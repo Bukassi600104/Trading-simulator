@@ -6,14 +6,34 @@ import Sidebar from "@/components/layout/Sidebar";
 import OrderPanel from "@/components/OrderPanel";
 import StreamingChart from "@/components/StreamingChart";
 import { useAuthStore } from "@/stores/authStore";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 function TradePageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const symbolParam = searchParams.get("symbol") || "BTC-USDT";
-  
-  const [symbol] = useState(symbolParam);
+
+  const supportedSymbols = ["BTC-USDT", "ETH-USDT"];
+  const normalizeSymbol = (value: string) => {
+    const trimmed = value.trim().toUpperCase();
+    if (!trimmed) return "BTC-USDT";
+
+    if (supportedSymbols.includes(trimmed)) return trimmed;
+
+    const normalized = trimmed.replace("/", "-");
+    if (supportedSymbols.includes(normalized)) return normalized;
+
+    const noSeparator = trimmed.replace(/[-/\s]/g, "");
+    if (noSeparator === "BTCUSDT") return "BTC-USDT";
+    if (noSeparator === "ETHUSDT") return "ETH-USDT";
+
+    return "BTC-USDT";
+  };
+
+  const symbol = normalizeSymbol(symbolParam);
+  const symbolIcon = symbol.startsWith("ETH") ? "Ξ" : "₿";
+  const [symbolInput, setSymbolInput] = useState(symbol);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"positions" | "pending" | "history" | "journal">("positions");
@@ -24,6 +44,10 @@ function TradePageInner() {
   useEffect(() => {
     setIsLoaded(true);
   }, []);
+
+  useEffect(() => {
+    setSymbolInput(symbol);
+  }, [symbol]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -67,8 +91,29 @@ function TradePageInner() {
             {/* Chart Header */}
             <header className="chart-header">
               <div className="header-left">
+                <form
+                  className="symbol-search"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    router.push(`/trade?symbol=${encodeURIComponent(normalizeSymbol(symbolInput))}`);
+                  }}
+                >
+                  <input
+                    className="symbol-input"
+                    value={symbolInput}
+                    onChange={(e) => setSymbolInput(e.target.value)}
+                    placeholder="Search symbol…"
+                    list="supported-symbols"
+                    aria-label="Symbol search"
+                  />
+                  <datalist id="supported-symbols">
+                    {supportedSymbols.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </form>
                 <div className="symbol-badge">
-                  <span className="symbol-icon">₿</span>
+                  <span className="symbol-icon">{symbolIcon}</span>
                   <span className="symbol-name">{symbol}</span>
                   {currentPrice && (
                     <span className="price-tag profit">+2.45%</span>
@@ -77,10 +122,10 @@ function TradePageInner() {
               </div>
 
               <div className="timeframes">
-                {["1m", "5m", "15m", "1H", "4H", "1D"].map((tf) => (
+                {["1m", "15m", "4H"].map((tf) => (
                   <button
                     key={tf}
-                    className={`tf-btn ${tf === "1H" ? "active" : ""}`}
+                    className={`tf-btn ${tf === "15m" ? "active" : ""}`}
                   >
                     {tf}
                   </button>
@@ -145,20 +190,20 @@ function TradePageInner() {
                   className={`tab ${activeTab === "positions" ? "active" : ""}`}
                   onClick={() => setActiveTab("positions")}
                 >
-                  <span>Positions</span>
+                  <span>Open Positions</span>
                   <span className="tab-count">3</span>
                 </button>
                 <button
                   className={`tab ${activeTab === "pending" ? "active" : ""}`}
                   onClick={() => setActiveTab("pending")}
                 >
-                  Pending
+                  Pending Orders
                 </button>
                 <button
                   className={`tab ${activeTab === "history" ? "active" : ""}`}
                   onClick={() => setActiveTab("history")}
                 >
-                  History
+                  Trade History
                 </button>
                 <button
                   className={`tab ${activeTab === "journal" ? "active" : ""}`}
@@ -268,6 +313,35 @@ function TradePageInner() {
           gap: 16px;
         }
 
+        .symbol-search {
+          display: flex;
+          align-items: center;
+        }
+
+        .symbol-input {
+          width: 160px;
+          height: 36px;
+          padding: 0 12px;
+          background: var(--depth);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-md);
+          color: var(--text-primary);
+          font-size: 13px;
+          font-weight: 600;
+          outline: none;
+          transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .symbol-input::placeholder {
+          color: var(--text-ghost);
+          font-weight: 500;
+        }
+
+        .symbol-input:focus {
+          border-color: var(--border-glow);
+          box-shadow: 0 0 0 3px var(--mint-glow);
+        }
+
         .symbol-badge {
           display: flex;
           align-items: center;
@@ -331,6 +405,11 @@ function TradePageInner() {
         .tf-btn:hover {
           color: var(--text-secondary);
           background: rgba(255, 255, 255, 0.03);
+        }
+
+        .tf-btn.active {
+          color: var(--text-primary);
+          background: var(--surface);
         }
 
         .tf-btn.active {

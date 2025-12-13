@@ -7,10 +7,11 @@ This module provides a paper trading implementation that:
 - Calculates fees like a real exchange
 """
 
+import asyncio
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Dict, List, Optional
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -36,6 +37,7 @@ class OrderRequest(BaseModel):
     order_type: OrderType = OrderType.MARKET
     qty: Decimal = Field(gt=0)
     price: Optional[Decimal] = None  # Required for limit orders
+    stop_price: Optional[Decimal] = None  # Required for stop orders
     reduce_only: bool = False
     leverage: Optional[int] = None  # Override portfolio leverage
 
@@ -49,6 +51,22 @@ class OrderResult(BaseModel):
     fill_price: Optional[Decimal] = None
     fee: Optional[Decimal] = None
     position: Optional[dict] = None
+
+
+class PendingOrder(BaseModel):
+    """In-memory representation of a queued order (STOP/LIMIT)."""
+
+    order_id: uuid.UUID
+    user_id: uuid.UUID
+    symbol: str
+    side: OrderSide
+    order_type: OrderType
+    qty: Decimal
+    price: Optional[Decimal] = None
+    stop_price: Optional[Decimal] = None
+    reduce_only: bool = False
+    leverage: Optional[int] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class PaperExchange:
@@ -67,6 +85,12 @@ class PaperExchange:
         self.fee_rate = FEE_RATE
         self.supported_symbols = SUPPORTED_SYMBOLS
         self.supported_leverage = SUPPORTED_LEVERAGE
+
+        # Pending orders are maintained in-memory and triggered by live prices
+        self._pending_lock = asyncio.Lock()
+        self._pending_by_symbol: Dict[str, List[PendingOrder]] = {
+            symbol: [] for symbol in self.supported_symbols
+        }
         
         logger.info("📜 Paper Exchange initialized")
     
@@ -124,24 +148,29 @@ class PaperExchange:
         # Handle based on order type
         if order.order_type == OrderType.MARKET:
             return await self._execute_market_order(portfolio, order, current_price, db)
-        elif order.order_type == OrderType.LIMIT:
-            return await self._handle_limit_order(portfolio, order)
-        else:
-            return OrderResult(
-                success=False,
-                message=f"Order type {order.order_type} not supported yet"
-            )
+
+        if order.order_type == OrderType.LIMIT:
+            return await self._handle_limit_order(user_id, portfolio, order, db)
+
+        if order.order_type == OrderType.STOP:
+            return await self._handle_stop_order(user_id, portfolio, order, current_price, db)
+
+        return OrderResult(
+            success=False,
+            message=f"Order type {order.order_type} not supported"
+        )
     
     async def _execute_market_order(
         self,
         portfolio: UserPortfolio,
         order: OrderRequest,
         fill_price: Decimal,
-        db: Optional[AsyncSession] = None
+        db: Optional[AsyncSession] = None,
+        order_id: Optional[uuid.UUID] = None,
     ) -> OrderResult:
         """Execute a market order immediately at current price"""
-        
-        order_id = uuid.uuid4()
+
+        order_id = order_id or uuid.uuid4()
         
         # Calculate fee
         fee = order.qty * fill_price * self.fee_rate
@@ -165,21 +194,29 @@ class PaperExchange:
                 
                 # Persist to DB if session provided
                 if db:
-                    db_order = Order(
-                        id=order_id,
-                        portfolio_id=portfolio.id,
-                        symbol=order.symbol,
-                        side=order.side,
-                        order_type=order.order_type,
-                        qty=order.qty,
-                        price=None, # Market order
-                        filled_qty=order.qty,
-                        avg_fill_price=fill_price,
-                        status=OrderStatus.FILLED,
-                        fee=fee,
-                        realized_pnl=realized_pnl
-                    )
-                    db.add(db_order)
+                    # Update existing order row if it exists (e.g., queued STOP/LIMIT), else create
+                    existing = await db.get(Order, order_id)
+                    if existing:
+                        existing.filled_qty = order.qty
+                        existing.avg_fill_price = fill_price
+                        existing.status = OrderStatus.FILLED
+                        existing.filled_at = datetime.utcnow()
+                    else:
+                        db_order = Order(
+                            id=order_id,
+                            portfolio_id=portfolio.id,
+                            symbol=order.symbol,
+                            side=order.side,
+                            order_type=order.order_type,
+                            qty=order.qty,
+                            price=None,  # Market order
+                            filled_qty=order.qty,
+                            avg_fill_price=fill_price,
+                            status=OrderStatus.FILLED,
+                            reduce_only=order.reduce_only,
+                            filled_at=datetime.utcnow(),
+                        )
+                        db.add(db_order)
 
                     # Create Journal Entry for the exit
                     # Calculate ROI %
@@ -236,20 +273,28 @@ class PaperExchange:
             if success:
                 # Persist to DB if session provided
                 if db:
-                    db_order = Order(
-                        id=order_id,
-                        portfolio_id=portfolio.id,
-                        symbol=order.symbol,
-                        side=order.side,
-                        order_type=order.order_type,
-                        qty=order.qty,
-                        price=None, # Market order
-                        filled_qty=order.qty,
-                        avg_fill_price=fill_price,
-                        status=OrderStatus.FILLED,
-                        fee=fee
-                    )
-                    db.add(db_order)
+                    existing = await db.get(Order, order_id)
+                    if existing:
+                        existing.filled_qty = order.qty
+                        existing.avg_fill_price = fill_price
+                        existing.status = OrderStatus.FILLED
+                        existing.filled_at = datetime.utcnow()
+                    else:
+                        db_order = Order(
+                            id=order_id,
+                            portfolio_id=portfolio.id,
+                            symbol=order.symbol,
+                            side=order.side,
+                            order_type=order.order_type,
+                            qty=order.qty,
+                            price=None,  # Market order
+                            filled_qty=order.qty,
+                            avg_fill_price=fill_price,
+                            status=OrderStatus.FILLED,
+                            reduce_only=order.reduce_only,
+                            filled_at=datetime.utcnow(),
+                        )
+                        db.add(db_order)
                     try:
                         await db.commit()
                     except Exception as e:
@@ -270,8 +315,10 @@ class PaperExchange:
     
     async def _handle_limit_order(
         self,
+        user_id: uuid.UUID,
         portfolio: UserPortfolio,
-        order: OrderRequest
+        order: OrderRequest,
+        db: Optional[AsyncSession] = None,
     ) -> OrderResult:
         """
         Handle limit order submission.
@@ -295,16 +342,196 @@ class PaperExchange:
             should_fill = True
         
         if should_fill:
-            return await self._execute_market_order(portfolio, order, current_price)
-        
-        # Otherwise, order would be pending (not implemented)
-        return OrderResult(
-            success=False,
-            message=(
-                "Limit order queuing not yet implemented. "
-                "Use market orders or set price at current market level."
+            return await self._execute_market_order(portfolio, order, current_price, db)
+
+        # Queue as pending
+        order_id = uuid.uuid4()
+
+        if db:
+            db_order = Order(
+                id=order_id,
+                portfolio_id=portfolio.id,
+                symbol=order.symbol,
+                side=order.side,
+                order_type=order.order_type,
+                qty=order.qty,
+                price=order.price,
+                filled_qty=Decimal("0"),
+                avg_fill_price=None,
+                status=OrderStatus.OPEN,
+                reduce_only=order.reduce_only,
             )
+            db.add(db_order)
+            try:
+                await db.commit()
+            except Exception as e:
+                logger.error(f"Failed to persist queued limit order: {e}")
+                await db.rollback()
+
+        async with self._pending_lock:
+            self._pending_by_symbol.setdefault(order.symbol, []).append(
+                PendingOrder(
+                    order_id=order_id,
+                    user_id=user_id,
+                    symbol=order.symbol,
+                    side=order.side,
+                    order_type=order.order_type,
+                    qty=order.qty,
+                    price=order.price,
+                    reduce_only=order.reduce_only,
+                    leverage=order.leverage,
+                )
+            )
+
+        return OrderResult(
+            success=True,
+            order_id=str(order_id),
+            message="Limit order queued",
         )
+
+    async def _handle_stop_order(
+        self,
+        user_id: uuid.UUID,
+        portfolio: UserPortfolio,
+        order: OrderRequest,
+        current_price: Decimal,
+        db: Optional[AsyncSession] = None,
+    ) -> OrderResult:
+        """Queue or execute a stop-market order based on current price."""
+
+        if order.stop_price is None:
+            return OrderResult(success=False, message="Stop orders require stop_price")
+
+        # Trigger rules (stop-market)
+        should_trigger = False
+        if order.side == OrderSide.BUY and current_price >= order.stop_price:
+            should_trigger = True
+        elif order.side == OrderSide.SELL and current_price <= order.stop_price:
+            should_trigger = True
+
+        if should_trigger:
+            return await self._execute_market_order(portfolio, order, current_price, db)
+
+        # Queue as pending
+        order_id = uuid.uuid4()
+
+        if db:
+            # Store trigger price in Order.price for STOP orders
+            db_order = Order(
+                id=order_id,
+                portfolio_id=portfolio.id,
+                symbol=order.symbol,
+                side=order.side,
+                order_type=order.order_type,
+                qty=order.qty,
+                price=order.stop_price,
+                filled_qty=Decimal("0"),
+                avg_fill_price=None,
+                status=OrderStatus.OPEN,
+                reduce_only=order.reduce_only,
+            )
+            db.add(db_order)
+            try:
+                await db.commit()
+            except Exception as e:
+                logger.error(f"Failed to persist queued stop order: {e}")
+                await db.rollback()
+
+        async with self._pending_lock:
+            self._pending_by_symbol.setdefault(order.symbol, []).append(
+                PendingOrder(
+                    order_id=order_id,
+                    user_id=user_id,
+                    symbol=order.symbol,
+                    side=order.side,
+                    order_type=order.order_type,
+                    qty=order.qty,
+                    stop_price=order.stop_price,
+                    reduce_only=order.reduce_only,
+                    leverage=order.leverage,
+                )
+            )
+
+        return OrderResult(
+            success=True,
+            order_id=str(order_id),
+            message="Stop order queued",
+        )
+
+    async def on_price_update(self, symbol: str, price: Decimal) -> None:
+        """Trigger and fill queued STOP/LIMIT orders for a symbol."""
+
+        # Fast exit
+        async with self._pending_lock:
+            pending = list(self._pending_by_symbol.get(symbol, []))
+            if not pending:
+                return
+
+        triggered: List[PendingOrder] = []
+        remaining: List[PendingOrder] = []
+
+        # Determine triggers without holding the lock too long
+        for po in pending:
+            if po.order_type == OrderType.STOP:
+                if po.stop_price is None:
+                    remaining.append(po)
+                    continue
+                if po.side == OrderSide.BUY and price >= po.stop_price:
+                    triggered.append(po)
+                elif po.side == OrderSide.SELL and price <= po.stop_price:
+                    triggered.append(po)
+                else:
+                    remaining.append(po)
+            elif po.order_type == OrderType.LIMIT:
+                if po.price is None:
+                    remaining.append(po)
+                    continue
+                if po.side == OrderSide.BUY and price <= po.price:
+                    triggered.append(po)
+                elif po.side == OrderSide.SELL and price >= po.price:
+                    triggered.append(po)
+                else:
+                    remaining.append(po)
+            else:
+                remaining.append(po)
+
+        if not triggered:
+            return
+
+        async with self._pending_lock:
+            # Remove triggered from the authoritative list
+            self._pending_by_symbol[symbol] = [
+                po for po in self._pending_by_symbol.get(symbol, [])
+                if po.order_id not in {t.order_id for t in triggered}
+            ]
+
+        # Execute fills (persist to DB if possible)
+        from app.core.database import async_session_maker
+
+        async with async_session_maker() as session:
+            for po in triggered:
+                portfolio = await self.portfolio_manager.get_or_create_portfolio(po.user_id)
+                if po.leverage and self.validate_leverage(po.leverage):
+                    portfolio.update_leverage(po.leverage)
+
+                order = OrderRequest(
+                    symbol=po.symbol,
+                    side=po.side,
+                    order_type=po.order_type,
+                    qty=po.qty,
+                    price=po.price,
+                    stop_price=po.stop_price,
+                    reduce_only=po.reduce_only,
+                    leverage=po.leverage,
+                )
+
+                await self._execute_market_order(
+                    portfolio=portfolio,
+                    order=order,
+                    fill_price=price,
+                    db=session,
+                    order_id=po.order_id,
+                )
     
     async def close_position(
         self,

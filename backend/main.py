@@ -113,6 +113,7 @@ async def price_update_forwarder():
     global market_stream
     
     portfolio_manager = get_portfolio_manager()
+    paper_exchange = get_paper_exchange()
     
     # Create queues for each symbol we want to track
     btc_queue = asyncio.Queue(maxsize=100)
@@ -135,6 +136,8 @@ async def price_update_forwarder():
                 data = await queue.get()
                 if "close" in data:
                     price = Decimal(str(data["close"]))
+                    # Trigger any pending orders first (STOP/LIMIT), then update valuations/broadcasts
+                    await paper_exchange.on_price_update(symbol, price)
                     await portfolio_manager.on_price_update(symbol, price)
             except Exception as e:
                 logger.error(f"Error processing price for {symbol}: {e}")

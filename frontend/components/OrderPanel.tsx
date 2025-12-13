@@ -13,8 +13,9 @@ interface OrderData {
   symbol: string;
   side: "BUY" | "SELL";
   qty: number;
-  orderType: "MARKET" | "LIMIT";
+  orderType: "MARKET" | "LIMIT" | "STOP";
   price?: number;
+  stopPrice?: number;
   leverage: number;
 }
 
@@ -24,9 +25,10 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
   const [marketType, setMarketType] = useState<"SPOT" | "FUTURES">("FUTURES");
   const [marginMode, setMarginMode] = useState<"CROSS" | "ISOLATED">("ISOLATED");
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
-  const [orderType, setOrderType] = useState<"MARKET" | "LIMIT">("MARKET");
+  const [orderType, setOrderType] = useState<"MARKET" | "LIMIT" | "STOP">("MARKET");
   const [qty, setQty] = useState<string>("");
   const [price, setPrice] = useState<string>("");
+  const [stopPrice, setStopPrice] = useState<string>("");
   const [leverage, setLeverage] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,11 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
       return;
     }
 
+    if (orderType === "STOP" && (!stopPrice || parseFloat(stopPrice) <= 0)) {
+      setError("Please enter a valid stop price");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -91,6 +98,7 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
         orderType,
         leverage,
         ...(orderType === "LIMIT" && { price: parseFloat(price) }),
+        ...(orderType === "STOP" && { stopPrice: parseFloat(stopPrice) }),
       };
 
       const response = await fetch(`${API_BASE}/api/trading/orders`, {
@@ -102,6 +110,7 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
           qty: orderData.qty,
           order_type: orderData.orderType,
           price: orderData.price,
+          stop_price: orderData.stopPrice,
           leverage: orderData.leverage,
         }),
       });
@@ -116,6 +125,7 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
       setSuccess(`Order placed! ${side} ${qty} ${symbol}`);
       setQty("");
       setPrice("");
+      setStopPrice("");
       onOrderSubmit?.(orderData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Order failed");
@@ -204,6 +214,12 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
           onClick={() => setOrderType("LIMIT")}
         >
           Limit
+        </button>
+        <button
+          className={`order-tab ${orderType === "STOP" ? "active" : ""}`}
+          onClick={() => setOrderType("STOP")}
+        >
+          Stop
         </button>
       </div>
 
@@ -315,6 +331,23 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="Enter price"
+                step="0.01"
+              />
+              <span className="unit">USDT</span>
+            </div>
+          </div>
+        )}
+
+        {/* Stop Price Input */}
+        {orderType === "STOP" && (
+          <div className="form-section">
+            <label className="input-label">Stop Price</label>
+            <div className="input-with-unit">
+              <input
+                type="number"
+                value={stopPrice}
+                onChange={(e) => setStopPrice(e.target.value)}
+                placeholder="Enter stop"
                 step="0.01"
               />
               <span className="unit">USDT</span>

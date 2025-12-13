@@ -136,12 +136,22 @@ export default function DashboardPage() {
           <div className="header-left">
             <h1>Main Dashboard</h1>
             <span className="date-time">
-              {dateTime ? `${dateTime.date} ΓÇó ${dateTime.time} UTC` : "Loading..."}
+              {dateTime ? `${dateTime.date} · ${dateTime.time} UTC` : "Loading..."}
             </span>
           </div>
           <div className="header-right">
-            <button className="notification-btn">≡ƒöö</button>
-            <button className="settings-btn">ΓÜÖ∩╕Å</button>
+            <button className="notification-btn" aria-label="Notifications">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </button>
+            <button className="settings-btn" aria-label="Settings">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-1.41 3.41H17a1.65 1.65 0 0 0-1.51 1v.09a2 2 0 0 1-3.98 0v-.09a1.65 1.65 0 0 0-1.51-1H7a2 2 0 0 1-1.41-3.41l.06-.06A1.65 1.65 0 0 0 6 15a1.65 1.65 0 0 0-1-1.51H5a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 8a1.65 1.65 0 0 0-.35-1.82l-.06-.06A2 2 0 0 1 7.99 2.7H8a1.65 1.65 0 0 0 1.51-1V1.7a2 2 0 0 1 3.98 0v.09A1.65 1.65 0 0 0 15 2.7h.01a2 2 0 0 1 1.41 3.41l-.06.06A1.65 1.65 0 0 0 18 8c0 .66.39 1.26 1 1.51H19a2 2 0 0 1 0 4h-.09c-.61.25-1 .85-1 1.49z" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -154,20 +164,20 @@ export default function DashboardPage() {
             <StatCard
               label="Total Balance"
               value={`$${portfolioData.balance.toLocaleString()}`}
-              icon="≡ƒÆ░"
+              icon="💰"
             />
 
             <StatCard
               label="Win Rate"
               value={`${portfolioData.winRate}%`}
-              icon="≡ƒôê"
+              icon="🎯"
               trend="up"
             />
 
             <StatCard
               label="Unrealized PNL"
               value={`${portfolioData.unrealizedPnl >= 0 ? "+" : ""}$${portfolioData.unrealizedPnl.toLocaleString()}`}
-              icon="≡ƒôè"
+              icon={portfolioData.unrealizedPnl >= 0 ? "📈" : "📉"}
               trend={portfolioData.unrealizedPnl >= 0 ? "up" : "down"}
             />
           </div>

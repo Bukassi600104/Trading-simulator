@@ -15,6 +15,7 @@ export default function Navbar({ onOpenAuth }: NavbarProps) {
     { href: "/dashboard", label: "Dashboard" },
     { href: "/trade", label: "Trade" },
     { href: "/journal", label: "Journal" },
+    { href: "/community", label: "Clans" },
     { href: "/challenge", label: "Challenge" },
   ];
 

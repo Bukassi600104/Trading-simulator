@@ -34,10 +34,10 @@ export default function StatCard({
 
       <style jsx>{`
         .stat-card {
-          background: #1E293B;
+          background: var(--surface);
           border-radius: 16px;
           padding: 20px;
-          border: 1px solid #334155;
+          border: 1px solid var(--border-default);
         }
 
         .stat-header {
@@ -49,14 +49,14 @@ export default function StatCard({
 
         .stat-label {
           font-size: 12px;
-          color: #64748B;
+          color: var(--text-muted);
           font-weight: 500;
         }
 
         .stat-icon {
           width: 32px;
           height: 32px;
-          background: #334155;
+          background: var(--elevated);
           border-radius: 8px;
           display: flex;
           align-items: center;
@@ -67,8 +67,8 @@ export default function StatCard({
         .stat-value {
           font-size: 28px;
           font-weight: 700;
-          color: #F1F5F9;
-          font-family: 'JetBrains Mono', monospace;
+          color: var(--text-primary);
+          font-family: var(--font-mono);
           margin-bottom: 4px;
         }
 
@@ -78,15 +78,15 @@ export default function StatCard({
         }
 
         .stat-change.up {
-          color: #10B981;
+          color: var(--profit-500);
         }
 
         .stat-change.down {
-          color: #EF4444;
+          color: var(--loss-500);
         }
 
         .stat-change.neutral {
-          color: #64748B;
+          color: var(--text-muted);
         }
       `}</style>
     </div>

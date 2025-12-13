@@ -7,8 +7,6 @@
    "Ground Zero for Professional Trading"
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
-
 @layer base {
   * {
     box-sizing: border-box;
@@ -21,23 +19,25 @@
      ═══════════════════════════════════════════════════════════════════════ */
   :root {
     /* ─── Core Backgrounds ─── */
-    --void: #05080f;           /* Deepest black - page bg */
-    --abyss: #0a0e18;          /* Main panels */
-    --depth: #0f1420;          /* Elevated surfaces */
-    --surface: #151b28;        /* Cards, modals */
-    --elevated: #1c2333;       /* Hover states */
+    --void: #0F172A;           /* Primary background (Slate 900) */
+    --abyss: #0F172A;          /* Main canvas */
+    --depth: #1E293B;          /* Secondary surfaces (Slate 800) */
+    --surface: #1E293B;        /* Cards, modals */
+    --elevated: #334155;       /* Hover states (Slate 700) */
     
-    /* ─── Accent: Cyber Mint (Primary) ─── */
-    --mint-50: #e6fff7;
-    --mint-100: #b3ffe6;
-    --mint-200: #80ffd4;
-    --mint-300: #4dffc3;
-    --mint-400: #1affb1;
-    --mint-500: #00e6a0;      /* Primary accent */
-    --mint-600: #00cc8e;
-    --mint-700: #00b37c;
-    --mint-800: #00996a;
-    --mint-900: #007352;
+    /* ─── Accent: Electric Blue (Primary CTA) ─── */
+    --mint-50: #eff6ff;
+    --mint-100: #dbeafe;
+    --mint-200: #bfdbfe;
+    --mint-300: #93c5fd;
+    --mint-400: #60a5fa;
+    --mint-500: #3B82F6;      /* Primary accent */
+    --mint-600: #2563eb;
+    --mint-700: #1d4ed8;
+    --mint-800: #1e40af;
+    --mint-900: #1e3a8a;
+
+    --mint-glow: rgba(59, 130, 246, 0.12);
     
     /* ─── Profit/Long (Emerald) ─── */
     --profit-glow: rgba(16, 185, 129, 0.15);
@@ -66,7 +66,7 @@
     --border-subtle: rgba(148, 163, 184, 0.08);
     --border-default: rgba(148, 163, 184, 0.12);
     --border-strong: rgba(148, 163, 184, 0.2);
-    --border-glow: rgba(0, 230, 160, 0.3);
+    --border-glow: rgba(59, 130, 246, 0.35);
     
     /* ─── Legacy compatibility ─── */
     --bg-primary: var(--void);
@@ -78,8 +78,8 @@
     --border-color: var(--border-default);
     
     /* ─── Typography ─── */
-    --font-display: 'Outfit', system-ui, sans-serif;
-    --font-mono: 'Geist Mono', 'JetBrains Mono', monospace;
+    --font-display: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
     
     /* ─── Spacing Scale ─── */
     --space-1: 4px;

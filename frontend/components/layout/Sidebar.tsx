@@ -17,9 +17,8 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
   const currentSymbol = searchParams.get("symbol") || "BTC-USDT";
 
   const tradingPairs = [
-    { symbol: "BTC-USDT", icon: "₿", label: "Bitcoin", color: "#f7931a" },
-    { symbol: "ETH-USDT", icon: "Ξ", label: "Ethereum", color: "#627eea" },
-    { symbol: "SOL-USDT", icon: "◎", label: "Solana", color: "#00ffa3" },
+    { symbol: "BTC-USDT", icon: "₿", label: "Bitcoin" },
+    { symbol: "ETH-USDT", icon: "Ξ", label: "Ethereum" },
   ];
 
   const chartTools = [
@@ -69,7 +68,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
             className={`sidebar-item ${currentSymbol === pair.symbol ? "active" : ""}`}
             title={pair.label}
           >
-            <span className="item-icon" style={{ color: pair.color }}>{pair.icon}</span>
+            <span className="item-icon">{pair.icon}</span>
             {!collapsed && <span className="item-symbol">{pair.symbol.split("-")[0]}</span>}
           </Link>
         ))}
