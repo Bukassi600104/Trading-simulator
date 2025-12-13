@@ -9,7 +9,10 @@ import os
 from contextlib import asynccontextmanager
 from decimal import Decimal
 
-import sentry_sdk
+try:
+    import sentry_sdk  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    sentry_sdk = None
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -33,7 +36,7 @@ from services.market_stream import MarketStreamService
 market_stream: MarketStreamService = None
 
 # Initialize Sentry
-if os.getenv("SENTRY_DSN"):
+if sentry_sdk is not None and os.getenv("SENTRY_DSN"):
     sentry_sdk.init(
         dsn=os.getenv("SENTRY_DSN"),
         traces_sample_rate=1.0,

@@ -9,6 +9,50 @@ import { API_BASE } from '@/lib/runtimeConfig';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+function apiHint(): string {
+  return `API: ${API_BASE}. If this is incorrect, set NEXT_PUBLIC_API_URL in your deployment environment.`;
+}
+
+let apiReachabilityCache:
+  | { checkedAt: number; ok: boolean; base: string }
+  | null = null;
+
+async function ensureApiReachable(): Promise<void> {
+  const now = Date.now();
+  const cacheTtlMs = 60_000; // 1 minute
+
+  if (
+    apiReachabilityCache &&
+    apiReachabilityCache.base === API_BASE &&
+    now - apiReachabilityCache.checkedAt < cacheTtlMs
+  ) {
+    if (!apiReachabilityCache.ok) {
+      throw new Error(`API server is unreachable. ${apiHint()}`);
+    }
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/health`, { method: 'GET' }, 4000);
+    const ok = res.ok;
+    apiReachabilityCache = { checkedAt: now, ok, base: API_BASE };
+    if (!ok) {
+      throw new Error(`API health check failed (${res.status}). ${apiHint()}`);
+    }
+  } catch (err) {
+    apiReachabilityCache = { checkedAt: now, ok: false, base: API_BASE };
+    const message =
+      err instanceof DOMException && err.name === 'AbortError'
+        ? `API health check timed out. ${apiHint()}`
+        : err instanceof TypeError
+          ? `Unable to reach the API server. ${apiHint()}`
+          : err instanceof Error
+            ? err.message
+            : `Unable to reach the API server. ${apiHint()}`;
+    throw new Error(message);
+  }
+}
+
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -84,6 +128,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
+          await ensureApiReachable();
           const response = await fetchWithTimeout(`${API_BASE}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -109,9 +154,9 @@ export const useAuthStore = create<AuthState>()(
         } catch (err) {
           const message =
             err instanceof DOMException && err.name === 'AbortError'
-              ? 'Login timed out. Please try again.'
+              ? `Login timed out. ${apiHint()}`
               : err instanceof TypeError
-                ? 'Unable to reach the API server. Check your connection and API URL.'
+                ? `Unable to reach the API server. ${apiHint()}`
                 : err instanceof Error
                   ? err.message
                   : 'Login failed';
@@ -125,6 +170,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
+          await ensureApiReachable();
           const response = await fetchWithTimeout(`${API_BASE}/api/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -150,9 +196,9 @@ export const useAuthStore = create<AuthState>()(
         } catch (err) {
           const message =
             err instanceof DOMException && err.name === 'AbortError'
-              ? 'Registration timed out. Please try again.'
+              ? `Registration timed out. ${apiHint()}`
               : err instanceof TypeError
-                ? 'Unable to reach the API server. Check your connection and API URL.'
+                ? `Unable to reach the API server. ${apiHint()}`
                 : err instanceof Error
                   ? err.message
                   : 'Registration failed';
@@ -164,6 +210,7 @@ export const useAuthStore = create<AuthState>()(
       requestPasswordReset: async (email: string) => {
         set({ isLoading: true, error: null });
         try {
+          await ensureApiReachable();
           const response = await fetchWithTimeout(`${API_BASE}/api/auth/forgot-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -181,9 +228,9 @@ export const useAuthStore = create<AuthState>()(
         } catch (err) {
           const message =
             err instanceof DOMException && err.name === 'AbortError'
-              ? 'Request timed out. Please try again.'
+              ? `Request timed out. ${apiHint()}`
               : err instanceof TypeError
-                ? 'Unable to reach the API server. Check your connection and API URL.'
+                ? `Unable to reach the API server. ${apiHint()}`
                 : err instanceof Error
                   ? err.message
                   : 'Request failed';
@@ -195,6 +242,7 @@ export const useAuthStore = create<AuthState>()(
       resetPassword: async (token: string, newPassword: string): Promise<boolean> => {
         set({ isLoading: true, error: null });
         try {
+          await ensureApiReachable();
           const response = await fetchWithTimeout(`${API_BASE}/api/auth/reset-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -211,9 +259,9 @@ export const useAuthStore = create<AuthState>()(
         } catch (err) {
           const message =
             err instanceof DOMException && err.name === 'AbortError'
-              ? 'Reset timed out. Please try again.'
+              ? `Reset timed out. ${apiHint()}`
               : err instanceof TypeError
-                ? 'Unable to reach the API server. Check your connection and API URL.'
+                ? `Unable to reach the API server. ${apiHint()}`
                 : err instanceof Error
                   ? err.message
                   : 'Reset failed';
@@ -237,6 +285,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
+          await ensureApiReachable();
           const response = await fetchWithTimeout(`${API_BASE}/api/auth/demo`, {
             method: 'POST',
           });
@@ -260,9 +309,9 @@ export const useAuthStore = create<AuthState>()(
         } catch (err) {
           const message =
             err instanceof DOMException && err.name === 'AbortError'
-              ? 'Demo login timed out. Please try again.'
+              ? `Demo login timed out. ${apiHint()}`
               : err instanceof TypeError
-                ? 'Unable to reach the API server. Check your connection and API URL.'
+                ? `Unable to reach the API server. ${apiHint()}`
                 : err instanceof Error
                   ? err.message
                   : 'Failed to get demo token';
