@@ -19,7 +19,7 @@ const setupSteps: SetupStep[] = [
 
 export default function InstructorOnboarding() {
   const router = useRouter();
-  useAuthStore();  // Keep store active
+  const { checkAuth } = useAuthStore();
   const { experience, updateSettings, completeOnboarding } = useOnboardingStore();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -30,11 +30,24 @@ export default function InstructorOnboarding() {
   const [showingDemo, setShowingDemo] = useState(false);
   const [demoStudents, setDemoStudents] = useState<Array<{id: number; name: string; pnl: number; status: string}>>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Show loading spinner until component is mounted
   useEffect(() => {
     setIsLoaded(true);
   }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      const ok = await checkAuth();
+      if (!ok) {
+        router.replace("/landing?auth=login");
+        return;
+      }
+      setIsCheckingAuth(false);
+    };
+    run();
+  }, [checkAuth, router]);
 
   // Only redirect if explicitly wrong experience (not null)
   useEffect(() => {
@@ -120,7 +133,7 @@ export default function InstructorOnboarding() {
   ];
 
   // Loading state to prevent FOUC
-  if (!isLoaded) {
+  if (!isLoaded || isCheckingAuth) {
     return (
       <div style={{
         minHeight: '100vh',

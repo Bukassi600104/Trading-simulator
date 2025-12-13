@@ -10,6 +10,8 @@ Endpoints:
 """
 
 import uuid
+import os
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
@@ -19,11 +21,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
 from app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    PasswordResetTokenData,
     Token,
     TokenData,
+    create_password_reset_token,
     create_access_token,
+    decode_password_reset_token,
     hash_password,
     require_auth,
+    sha256_hex,
     verify_password,
 )
 from app.models.user import User, UserTier
@@ -63,6 +69,24 @@ class AuthResponse(BaseModel):
     """Authentication response with token and user info"""
     token: Token
     user: UserResponse
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+    reset_token: str | None = None
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class ResetPasswordResponse(BaseModel):
+    message: str
 
 
 # ============================================================================
@@ -261,3 +285,82 @@ async def get_demo_token(
             created_at=user.created_at.isoformat()
         )
     )
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    session: AsyncSession = Depends(get_session),
+) -> ForgotPasswordResponse:
+    """Request a password reset token.
+
+    For security, this always returns a success message regardless of whether
+    the email exists.
+
+    In production, you would email the token/link to the user. For development
+    and demo deployments, you can set RETURN_RESET_TOKEN=true to return it.
+    """
+    # Always return a generic success message
+    generic_message = "If an account exists for that email, a reset link has been sent."
+
+    result = await session.execute(select(User).where(User.email == request.email))
+    user = result.scalar_one_or_none()
+
+    if not user or not user.is_active:
+        return ForgotPasswordResponse(message=generic_message, reset_token=None)
+
+    token = create_password_reset_token(
+        user_id=user.id,
+        email=user.email,
+        password_hash=user.hashed_password,
+        expires_delta=timedelta(minutes=30),
+    )
+
+    return_token = os.getenv("RETURN_RESET_TOKEN", "true").lower() == "true"
+    return ForgotPasswordResponse(
+        message=generic_message,
+        reset_token=token if return_token else None,
+    )
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+async def reset_password(
+    request: ResetPasswordRequest,
+    session: AsyncSession = Depends(get_session),
+) -> ResetPasswordResponse:
+    """Reset a user's password using a valid password reset token."""
+    token_data: PasswordResetTokenData | None = decode_password_reset_token(request.token)
+    if token_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    try:
+        user_id = uuid.UUID(token_data.user_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token",
+        ) from e
+
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token",
+        )
+
+    # Token is bound to the current password hash; if password already changed, reject.
+    if token_data.password_hash_digest != sha256_hex(user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token is no longer valid",
+        )
+
+    user.hashed_password = hash_password(request.new_password)
+    session.add(user)
+    await session.commit()
+
+    return ResetPasswordResponse(message="Password updated successfully")

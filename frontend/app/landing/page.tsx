@@ -2,11 +2,12 @@
 
 import AuthModal from "@/components/AuthModal";
 import { useAuthStore } from "@/stores/authStore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function LandingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authInitialTab, setAuthInitialTab] = useState<"login" | "register">("register");
   const [mounted, setMounted] = useState(false);
@@ -15,6 +16,18 @@ export default function LandingPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Allow deep-linking into auth modal from protected pages
+  useEffect(() => {
+    if (!mounted) return;
+    if (isAuthenticated) return;
+
+    const auth = searchParams.get("auth");
+    if (auth === "login" || auth === "register") {
+      setAuthInitialTab(auth);
+      setAuthModalOpen(true);
+    }
+  }, [mounted, isAuthenticated, searchParams]);
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
@@ -50,7 +63,7 @@ export default function LandingPage() {
           <div className="nav-links">
             <a href="#features">Features</a>
             <a href="#process">How It Works</a>
-            <a href="#pricing">Pricing</a>
+            <a href="/pricing">Pricing</a>
           </div>
 
           <div className="nav-actions">

@@ -1,8 +1,9 @@
 "use client";
 
-import AuthModal from "@/components/AuthModal";
 import Navbar from "@/components/layout/Navbar";
-import { useState } from "react";
+import { useAuthStore } from "@/stores/authStore";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface ChallengeData {
   phase: string;
@@ -28,7 +29,25 @@ interface Position {
 }
 
 export default function ChallengePage() {
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const router = useRouter();
+  const { checkAuth, user } = useAuthStore();
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    const run = async () => {
+      const ok = await checkAuth();
+      if (!ok) {
+        router.replace("/landing?auth=login");
+        return;
+      }
+
+      setIsChecking(false);
+    };
+    run();
+  }, [checkAuth, router]);
+
+  const tier = user?.tier;
+  const canAccessChallenge = tier === "PROP_CHALLENGE";
   
   // Mock challenge data
   const [challengeData] = useState<ChallengeData>({
@@ -55,17 +74,63 @@ export default function ChallengePage() {
   const dailyLossProgress = (challengeData.maxDailyLoss.current / challengeData.maxDailyLoss.limit) * 100;
   const totalLossProgress = (challengeData.maxTotalLoss.current / challengeData.maxTotalLoss.limit) * 100;
 
+  if (isChecking) {
+    return (
+      <div className="loading-screen">
+        <div className="t0-spinner" />
+      </div>
+    );
+  }
+
+  if (!canAccessChallenge) {
+    return (
+      <div className="challenge-page">
+        <Navbar />
+
+        <main className="challenge-content">
+          <div className="challenge-header">
+            <div className="header-left">
+              <div className="brand">
+                <span className="brand-icon">M</span>
+                <div className="brand-info">
+                  <span className="brand-name">Midnight Trader</span>
+                  <span className="connection-status">
+                    <span className="status-dot"></span>
+                    UPGRADE REQUIRED
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="phase-badge">
+              <span className="phase-text">Prop Challenge is available on the Prop Challenge plan</span>
+            </div>
+
+            <div className="header-right">
+              <button className="new-order-btn" onClick={() => router.push("/pricing")}>
+                View Pricing
+              </button>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <h2>Access Restricted</h2>
+            </div>
+            <div className="panel-body">
+              Your current tier is <strong>{tier || "FREE"}</strong>. Upgrade to start the evaluation.
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="challenge-page">
-      <Navbar onOpenAuth={() => setAuthModalOpen(true)} />
-
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
-
+      <Navbar />
       <main className="challenge-content">
-        {/* Challenge Header */}
+      {/* Challenge Header */}
         <div className="challenge-header">
           <div className="header-left">
             <div className="brand">

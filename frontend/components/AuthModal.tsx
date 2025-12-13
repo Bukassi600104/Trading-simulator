@@ -6,6 +6,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ForgotPasswordForm from './ForgotPasswordForm';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
 
@@ -17,11 +18,13 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose, initialTab = 'login' }: AuthModalProps) {
   const [activeTab, setActiveTab] = useState<'login' | 'register'>(initialTab);
+  const [activeView, setActiveView] = useState<'tabs' | 'forgot'>('tabs');
 
   // Reset to initial tab when modal opens
   useEffect(() => {
     if (isOpen) {
       setActiveTab(initialTab);
+      setActiveView('tabs');
     }
   }, [isOpen, initialTab]);
 
@@ -93,10 +96,13 @@ export default function AuthModal({ isOpen, onClose, initialTab = 'login' }: Aut
         
         {/* Form Container */}
         <div className="form-wrapper">
-          {activeTab === 'login' ? (
+          {activeView === 'forgot' ? (
+            <ForgotPasswordForm onBackToLogin={() => setActiveView('tabs')} />
+          ) : activeTab === 'login' ? (
             <LoginForm 
               onSuccess={onClose} 
               onSwitchToRegister={() => setActiveTab('register')}
+              onForgotPassword={() => setActiveView('forgot')}
             />
           ) : (
             <RegisterForm 

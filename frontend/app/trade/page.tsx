@@ -1,6 +1,5 @@
 "use client";
 
-import AuthModal from "@/components/AuthModal";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import OrderPanel from "@/components/OrderPanel";
@@ -35,7 +34,6 @@ function TradePageInner() {
   const symbolIcon = symbol.startsWith("ETH") ? "Ξ" : "₿";
   const [symbolInput, setSymbolInput] = useState(symbol);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"positions" | "pending" | "history" | "journal">("positions");
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -53,11 +51,12 @@ function TradePageInner() {
     const initAuth = async () => {
       const isValid = await checkAuth();
       if (!isValid) {
-        setAuthModalOpen(true);
+        router.replace("/landing?auth=login");
+        return;
       }
     };
     initAuth();
-  }, [checkAuth]);
+  }, [checkAuth, router]);
 
   // Convert symbol for WebSocket (BTC-USDT -> BTCUSDT)
   const wsSymbol = symbol.replace("-", "");
@@ -73,12 +72,7 @@ function TradePageInner() {
 
   return (
     <div className="trade-page">
-      <Navbar onOpenAuth={() => setAuthModalOpen(true)} />
-
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
+      <Navbar />
 
       <div className="trade-layout">
         {/* Left Sidebar - Symbol Selection */}

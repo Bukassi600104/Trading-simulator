@@ -7,16 +7,29 @@ import { useEffect, useState } from "react";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  useAuthStore();  // Keep store active
+  const { checkAuth } = useAuthStore();
   const { setExperience } = useOnboardingStore();
   const [selectedExperience, setSelectedExperience] = useState<UserExperience>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Show loading spinner until component is mounted
   useEffect(() => {
     setIsLoaded(true);
   }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      const ok = await checkAuth();
+      if (!ok) {
+        router.replace("/landing?auth=login");
+        return;
+      }
+      setIsCheckingAuth(false);
+    };
+    run();
+  }, [checkAuth, router]);
 
   const handleSelect = (exp: UserExperience) => {
     setSelectedExperience(exp);
@@ -40,7 +53,7 @@ export default function OnboardingPage() {
   };
 
   // Show loading spinner while page hydrates
-  if (!isLoaded) {
+  if (!isLoaded || isCheckingAuth) {
     return (
       <div style={{
         minHeight: '100vh',

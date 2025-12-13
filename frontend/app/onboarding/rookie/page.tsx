@@ -77,7 +77,7 @@ const tutorialSteps: TutorialStep[] = [
 
 export default function RookieOnboarding() {
   const router = useRouter();
-  useAuthStore();  // Keep store active
+  const { checkAuth } = useAuthStore();
   const { experience, setTutorialStep, completeFirstTrade } = useOnboardingStore();
   
   const [currentStep, setCurrentStep] = useState(0);
@@ -88,11 +88,24 @@ export default function RookieOnboarding() {
   const [entryPrice, setEntryPrice] = useState(0);
   const [badgeUnlocked, setBadgeUnlocked] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Show loading spinner until component is mounted
   useEffect(() => {
     setIsLoaded(true);
   }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      const ok = await checkAuth();
+      if (!ok) {
+        router.replace("/landing?auth=login");
+        return;
+      }
+      setIsCheckingAuth(false);
+    };
+    run();
+  }, [checkAuth, router]);
 
   // Only redirect if explicitly wrong experience (not null)
   useEffect(() => {
@@ -158,7 +171,7 @@ export default function RookieOnboarding() {
   const step = tutorialSteps[currentStep];
 
   // Show loading spinner while page hydrates
-  if (!isLoaded) {
+  if (!isLoaded || isCheckingAuth) {
     return (
       <div style={{
         minHeight: '100vh',

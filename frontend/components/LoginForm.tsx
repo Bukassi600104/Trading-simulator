@@ -11,9 +11,10 @@ import { useAuthStore } from '../stores/authStore';
 interface LoginFormProps {
   onSuccess?: () => void;
   onSwitchToRegister?: () => void;
+  onForgotPassword?: () => void;
 }
 
-export default function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
+export default function LoginForm({ onSuccess, onSwitchToRegister, onForgotPassword }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -74,7 +75,14 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormPr
         </div>
         
         <div className="field">
-          <label htmlFor="password">Password</label>
+          <div className="password-row">
+            <label htmlFor="password">Password</label>
+            {onForgotPassword && (
+              <button type="button" className="forgot" onClick={onForgotPassword} disabled={isLoading}>
+                Forgot?
+              </button>
+            )}
+          </div>
           <div className="input-wrapper">
             <svg className="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -210,6 +218,32 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormPr
         /* Form Fields */
         .field {
           margin-bottom: 18px;
+        }
+
+        .password-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 8px;
+        }
+
+        .password-row label {
+          margin-bottom: 0;
+        }
+
+        .forgot {
+          background: none;
+          border: none;
+          color: var(--text-muted);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 0;
+        }
+
+        .forgot:hover {
+          color: var(--text-secondary);
         }
         
         label {

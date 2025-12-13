@@ -55,11 +55,11 @@ export default function Navbar({ onOpenAuth }: NavbarProps) {
 
         {/* Right Section */}
         <div className="nav-right">
-          <Link href="/challenge" className="cta-btn">
+          <Link href="/pricing" className="cta-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
             </svg>
-            <span>Go Pro</span>
+            <span>Pricing</span>
           </Link>
           <UserMenu onOpenAuth={onOpenAuth || (() => {})} />
         </div>

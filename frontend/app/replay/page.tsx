@@ -1,8 +1,8 @@
 "use client";
 
-import AuthModal from "@/components/AuthModal";
 import Navbar from "@/components/layout/Navbar";
 import { API_BASE } from "@/lib/runtimeConfig";
+import { useAuthStore } from "@/stores/authStore";
 import {
     CandlestickData,
     CandlestickSeries,
@@ -12,7 +12,7 @@ import {
     LineStyle,
     Time,
 } from "lightweight-charts";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 interface CandleData {
@@ -26,10 +26,20 @@ interface CandleData {
 
 function ReplayPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { checkAuth } = useAuthStore();
   const symbolParam = searchParams.get("symbol") || "BTCUSDT";
   
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [symbol] = useState(symbolParam);
+    useEffect(() => {
+      const run = async () => {
+        const ok = await checkAuth();
+        if (!ok) {
+          router.replace("/landing?auth=login");
+        }
+      };
+      run();
+    }, [checkAuth, router]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -238,12 +248,7 @@ function ReplayPageInner() {
 
   return (
     <div className="replay-page">
-      <Navbar onOpenAuth={() => setAuthModalOpen(true)} />
-
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
+      <Navbar />
 
       <main className="replay-content">
         <div className="replay-header">

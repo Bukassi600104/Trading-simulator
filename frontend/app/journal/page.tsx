@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Navbar from "@/components/layout/Navbar";
-import AuthModal from "@/components/AuthModal";
+import { useAuthStore } from "@/stores/authStore";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface Trade {
   id: string;
@@ -23,11 +24,22 @@ interface DayData {
 }
 
 export default function JournalPage() {
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const router = useRouter();
+  const { checkAuth } = useAuthStore();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [journalModalOpen, setJournalModalOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  useEffect(() => {
+    const run = async () => {
+      const ok = await checkAuth();
+      if (!ok) {
+        router.replace("/landing?auth=login");
+      }
+    };
+    run();
+  }, [checkAuth, router]);
 
   // Mock trade data
   const mockTrades: Trade[] = [
@@ -92,12 +104,7 @@ export default function JournalPage() {
 
   return (
     <div className="journal-page">
-      <Navbar onOpenAuth={() => setAuthModalOpen(true)} />
-
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
+      <Navbar />
 
       <main className="journal-content">
         <div className="page-header">

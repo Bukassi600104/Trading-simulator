@@ -9,6 +9,7 @@ Handles:
 
 import os
 import uuid
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -74,6 +75,70 @@ def create_access_token(
     
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def create_password_reset_token(
+    user_id: uuid.UUID,
+    email: str,
+    password_hash: str,
+    expires_delta: Optional[timedelta] = None,
+) -> str:
+    """Create a password reset token bound to the user's current password hash.
+
+    The token includes a digest of the current password hash so that once a
+    password is changed, previously issued reset tokens become invalid.
+    """
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=30)
+
+    to_encode = {
+        "typ": "pwd_reset",
+        "sub": str(user_id),
+        "email": email,
+        "ph": sha256_hex(password_hash),
+        "exp": expire,
+        "iat": datetime.utcnow(),
+    }
+
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+class PasswordResetTokenData(BaseModel):
+    user_id: str
+    email: Optional[str] = None
+    password_hash_digest: str
+    exp: Optional[datetime] = None
+
+
+def decode_password_reset_token(token: str) -> Optional[PasswordResetTokenData]:
+    """Decode and validate a password reset token."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("typ") != "pwd_reset":
+            return None
+
+        user_id: str = payload.get("sub")
+        email: str = payload.get("email")
+        password_hash_digest: str = payload.get("ph")
+        exp: datetime = datetime.fromtimestamp(payload.get("exp"))
+
+        if not user_id or not password_hash_digest:
+            return None
+
+        return PasswordResetTokenData(
+            user_id=user_id,
+            email=email,
+            password_hash_digest=password_hash_digest,
+            exp=exp,
+        )
+    except JWTError:
+        return None
 
 
 def decode_access_token(token: str) -> Optional[TokenData]:

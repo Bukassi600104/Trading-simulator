@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import AuthModal from "@/components/AuthModal";
 import AffiliateWidget from "@/components/dashboard/AffiliateWidget";
 import ClanWidget from "@/components/dashboard/ClanWidget";
 import EquityCurve from "@/components/dashboard/EquityCurve";
@@ -11,10 +10,11 @@ import Navbar from "@/components/layout/Navbar";
 import { API_BASE } from "@/lib/runtimeConfig";
 import { useAuthStore } from "@/stores/authStore";
 import { useOnboardingStore } from "@/stores/onboardingStore";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
   const [portfolioData, setPortfolioData] = useState({
     balance: 104230,
@@ -35,7 +35,8 @@ export default function DashboardPage() {
       const isValid = await checkAuth();
 
       if (!isValid) {
-        setAuthModalOpen(true);
+        router.replace("/landing?auth=login");
+        return;
       }
 
       setIsChecking(false);
@@ -62,7 +63,7 @@ export default function DashboardPage() {
     updateDateTime();
     const interval = setInterval(updateDateTime, 60000); // Update every minute
     return () => clearInterval(interval);
-  }, [checkAuth]);
+  }, [checkAuth, router]);
 
   const fetchPortfolioData = async () => {
     try {
@@ -123,12 +124,7 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <Navbar onOpenAuth={() => setAuthModalOpen(true)} />
-
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
+      <Navbar />
 
       <main className="dashboard-content">
         {/* Page Header */}
