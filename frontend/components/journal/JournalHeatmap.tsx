@@ -1,15 +1,14 @@
 "use client";
 
+import { API_BASE } from '@/lib/runtimeConfig';
 import { eachDayOfInterval, format, subDays } from 'date-fns';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 interface JournalEntry {
   id: string;
   pnl: number;
   exit_time: string;
 }
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function JournalHeatmap() {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -46,19 +45,19 @@ export default function JournalHeatmap() {
     pnlByDay.set(dateStr, current + entry.pnl);
   });
 
-  const getIntensityClass = (pnl: number) => {
-    if (pnl === 0) return 'bg-[#161b22]'; // Empty
+  const getCellStyle = (pnl: number): CSSProperties => {
+    // Use existing theme tokens (no new colors)
+    if (pnl === 0) return { backgroundColor: 'var(--depth)' };
     if (pnl > 0) {
-      if (pnl > 1000) return 'bg-emerald-500';
-      if (pnl > 500) return 'bg-emerald-600';
-      if (pnl > 100) return 'bg-emerald-700';
-      return 'bg-emerald-900/50';
-    } else {
-      if (pnl < -1000) return 'bg-red-500';
-      if (pnl < -500) return 'bg-red-600';
-      if (pnl < -100) return 'bg-red-700';
-      return 'bg-red-900/50';
+      if (pnl > 1000) return { backgroundColor: 'var(--profit-500)' };
+      if (pnl > 500) return { backgroundColor: 'var(--profit-600)' };
+      if (pnl > 100) return { backgroundColor: 'var(--profit-600)', opacity: 0.75 };
+      return { backgroundColor: 'var(--profit-glow)' };
     }
+    if (pnl < -1000) return { backgroundColor: 'var(--loss-500)' };
+    if (pnl < -500) return { backgroundColor: 'var(--loss-600)' };
+    if (pnl < -100) return { backgroundColor: 'var(--loss-600)', opacity: 0.75 };
+    return { backgroundColor: 'var(--loss-glow)' };
   };
 
   if (isLoading) {
@@ -66,8 +65,8 @@ export default function JournalHeatmap() {
   }
 
   return (
-    <div className="p-4 bg-[#0d1117] rounded-xl border border-[#30363d]">
-      <h3 className="text-sm font-medium text-gray-400 mb-4">Trading Activity (Last Year)</h3>
+    <div className="p-4 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border-subtle)' }}>
+      <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>Trading Activity (Last Year)</h3>
       <div className="flex gap-1 overflow-x-auto pb-2">
         {/* We can render weeks as columns */}
         {Array.from({ length: 53 }).map((_, weekIndex) => (
@@ -82,7 +81,8 @@ export default function JournalHeatmap() {
               return (
                 <div
                   key={dateStr}
-                  className={`w-3 h-3 rounded-sm ${getIntensityClass(pnl)}`}
+                  className="w-3 h-3 rounded-sm"
+                  style={getCellStyle(pnl)}
                   title={`${dateStr}: $${pnl.toFixed(2)}`}
                 />
               );
@@ -90,11 +90,11 @@ export default function JournalHeatmap() {
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-2 mt-4 text-xs text-gray-500">
+      <div className="flex items-center gap-2 mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>
         <span>Less</span>
-        <div className="w-3 h-3 bg-[#161b22] rounded-sm" />
-        <div className="w-3 h-3 bg-emerald-900/50 rounded-sm" />
-        <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
+        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'var(--depth)' }} />
+        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'var(--profit-glow)' }} />
+        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'var(--profit-500)' }} />
         <span>More</span>
       </div>
     </div>

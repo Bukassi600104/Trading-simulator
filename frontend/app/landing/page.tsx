@@ -18,7 +18,7 @@ export default function LandingPage() {
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
-      router.push("/");
+      router.push("/dashboard");
     } else {
       setAuthInitialTab("register");
       setAuthModalOpen(true);
@@ -55,7 +55,7 @@ export default function LandingPage() {
 
           <div className="nav-actions">
             {mounted && isAuthenticated ? (
-              <button className="btn-dashboard" onClick={() => router.push("/")}>
+              <button className="btn-dashboard" onClick={() => router.push("/dashboard")}> 
                 Dashboard
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

@@ -164,9 +164,17 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(LatencyGuardMiddleware)
 
 # CORS configuration for frontend
+cors_origins_env = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000")
+cors_allow_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+cors_origin_regex = os.getenv(
+    "CORS_ALLOW_ORIGIN_REGEX",
+    r"https://.*\\.amplifyapp\\.com"
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=cors_allow_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

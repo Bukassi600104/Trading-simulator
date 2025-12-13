@@ -5,11 +5,9 @@
  * Uses Zustand for state management with persistence.
  */
 
+import { API_BASE } from '@/lib/runtimeConfig';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-// API Base URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Types
 export interface User {

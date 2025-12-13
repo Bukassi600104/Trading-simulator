@@ -5,6 +5,7 @@
 
 "use client";
 
+import { API_BASE, WS_BASE } from "@/lib/runtimeConfig";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Position {
@@ -41,7 +42,7 @@ export default function PositionsPanel({ onClose }: PositionsPanelProps) {
   const mountedRef = useRef<boolean>(true);
 
   const connectWebSocket = useCallback(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/portfolio");
+    const ws = new WebSocket(`${WS_BASE}/ws/portfolio`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -94,7 +95,7 @@ export default function PositionsPanel({ onClose }: PositionsPanelProps) {
   const handleClosePosition = async (symbol: string) => {
     setClosingSymbol(symbol);
     try {
-      const response = await fetch("http://localhost:8000/api/trading/positions/close", {
+      const response = await fetch(`${API_BASE}/api/trading/positions/close`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol }),

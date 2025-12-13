@@ -1,6 +1,5 @@
+import { WS_BASE } from '@/lib/runtimeConfig';
 import { useEffect, useRef, useState } from 'react';
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 
 export interface TickerData {
   symbol: string;
@@ -19,7 +18,7 @@ export function useTicker(symbol: string) {
     // Convert BTC-USDT to BTCUSDT for Bybit/Backend
     const wsSymbol = symbol.replace('-', '');
     // Default to 1m interval for ticker updates
-    const url = `${WS_URL}/ws/ticker/${wsSymbol}?interval=1`;
+    const url = `${WS_BASE}/ws/ticker/${wsSymbol}?interval=1`;
 
     const ws = new WebSocket(url);
     wsRef.current = ws;

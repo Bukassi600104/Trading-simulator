@@ -7,9 +7,9 @@ import OrderPanel from "@/components/OrderPanel";
 import StreamingChart from "@/components/StreamingChart";
 import { useAuthStore } from "@/stores/authStore";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
-export default function TradePage() {
+function TradePageInner() {
   const searchParams = useSearchParams();
   const symbolParam = searchParams.get("symbol") || "BTC-USDT";
   
@@ -19,7 +19,7 @@ export default function TradePage() {
   const [activeTab, setActiveTab] = useState<"positions" | "pending" | "history" | "journal">("positions");
   const [isLoaded, setIsLoaded] = useState(false);
 
-  const { checkAuth, getDemoToken } = useAuthStore();
+  const { checkAuth } = useAuthStore();
 
   useEffect(() => {
     setIsLoaded(true);
@@ -29,11 +29,11 @@ export default function TradePage() {
     const initAuth = async () => {
       const isValid = await checkAuth();
       if (!isValid) {
-        await getDemoToken();
+        setAuthModalOpen(true);
       }
     };
     initAuth();
-  }, [checkAuth, getDemoToken]);
+  }, [checkAuth]);
 
   // Convert symbol for WebSocket (BTC-USDT -> BTCUSDT)
   const wsSymbol = symbol.replace("-", "");
@@ -588,6 +588,14 @@ export default function TradePage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function TradePage() {
+  return (
+    <Suspense fallback={<div className="loading-screen"><div className="t0-spinner" /></div>}>
+      <TradePageInner />
+    </Suspense>
   );
 }
 

@@ -12,14 +12,14 @@ export default function Navbar({ onOpenAuth }: NavbarProps) {
   const pathname = usePathname();
 
   const navLinks = [
-    { href: "/", label: "Dashboard" },
+    { href: "/dashboard", label: "Dashboard" },
     { href: "/trade", label: "Trade" },
     { href: "/journal", label: "Journal" },
     { href: "/challenge", label: "Challenge" },
   ];
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
+    if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   };
 
@@ -27,7 +27,7 @@ export default function Navbar({ onOpenAuth }: NavbarProps) {
     <header className="navbar">
       <div className="navbar-inner">
         {/* Logo Section */}
-        <Link href="/" className="logo-section">
+        <Link href="/dashboard" className="logo-section">
           <div className="logo-mark">
             <span>T</span>
             <span className="zero">0</span>

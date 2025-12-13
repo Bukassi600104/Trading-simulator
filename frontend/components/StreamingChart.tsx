@@ -5,6 +5,7 @@
 
 "use client";
 
+import { API_BASE, WS_BASE } from "@/lib/runtimeConfig";
 import { CandlestickData, CandlestickSeries, createChart, IChartApi, ISeriesApi, LineStyle, Time } from "lightweight-charts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -41,8 +42,6 @@ const TIMEFRAMES = [
     { label: "1D", value: "D" },
     { label: "1W", value: "W" },
 ];
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function StreamingChart({ symbol = "BTCUSDT", onPriceUpdate }: StreamingChartProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -252,8 +251,7 @@ export default function StreamingChart({ symbol = "BTCUSDT", onPriceUpdate }: St
     }, [selectedTimeframe]);
 
     const connectWebSocket = (interval: string) => {
-        const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
-        const wsUrl = `${wsBase}/ws/ticker/${symbol}?interval=${interval}`;
+        const wsUrl = `${WS_BASE}/ws/ticker/${symbol}?interval=${interval}`;
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 

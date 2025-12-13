@@ -5,6 +5,7 @@
 
 "use client";
 
+import { API_BASE, WS_BASE } from "@/lib/runtimeConfig";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Portfolio {
@@ -25,7 +26,7 @@ export default function PortfolioWidget() {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/trading/portfolio");
+      const response = await fetch(`${API_BASE}/api/trading/portfolio`);
       const data = await response.json();
       if (mountedRef.current) {
         setPortfolio(data);
@@ -36,7 +37,7 @@ export default function PortfolioWidget() {
   }, []);
 
   const connectWebSocket = useCallback(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/portfolio");
+    const ws = new WebSocket(`${WS_BASE}/ws/portfolio`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -85,7 +86,7 @@ export default function PortfolioWidget() {
 
   const handleReset = async () => {
     try {
-      await fetch("http://localhost:8000/api/trading/reset", { method: "POST" });
+      await fetch(`${API_BASE}/api/trading/reset`, { method: "POST" });
       fetchPortfolio();
     } catch (err) {
       console.error("Failed to reset portfolio:", err);

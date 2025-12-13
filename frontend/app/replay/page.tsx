@@ -2,6 +2,7 @@
 
 import AuthModal from "@/components/AuthModal";
 import Navbar from "@/components/layout/Navbar";
+import { API_BASE } from "@/lib/runtimeConfig";
 import {
     CandlestickData,
     CandlestickSeries,
@@ -12,7 +13,7 @@ import {
     Time,
 } from "lightweight-charts";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 interface CandleData {
   time: number;
@@ -23,9 +24,7 @@ interface CandleData {
   volume?: number;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-export default function ReplayPage() {
+function ReplayPageInner() {
   const searchParams = useSearchParams();
   const symbolParam = searchParams.get("symbol") || "BTCUSDT";
   
@@ -643,5 +642,13 @@ export default function ReplayPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function ReplayPage() {
+  return (
+    <Suspense fallback={<div className="loading-screen"><div className="t0-spinner" /></div>}>
+      <ReplayPageInner />
+    </Suspense>
   );
 }

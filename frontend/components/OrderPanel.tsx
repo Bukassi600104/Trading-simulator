@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/runtimeConfig";
 import { useEffect, useState } from "react";
 
 interface OrderPanelProps {
@@ -92,7 +93,7 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
         ...(orderType === "LIMIT" && { price: parseFloat(price) }),
       };
 
-      const response = await fetch("http://localhost:8000/api/trading/orders", {
+      const response = await fetch(`${API_BASE}/api/trading/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -104,6 +105,7 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
           leverage: orderData.leverage,
         }),
       });
+      
 
       const result = await response.json();
 
