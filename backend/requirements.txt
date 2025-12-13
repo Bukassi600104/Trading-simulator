@@ -28,7 +28,8 @@ pandas>=2.2.1               # DataFrame manipulation (OHLCV data)
 scipy>=1.13.0               # Advanced scientific math
 arrow>=1.3.0                # Better date/time handling for timezones
 ccxt>=4.2.0                 # Universal crypto exchange API wrapper (critical)
-TA-Lib                      # Technical Analysis library (RSI, MACD calculations)
+
+# NOTE: TA-Lib removed (unused here; avoids native build failures)
 
 # --- AWS Cloud Integration ---
 boto3>=1.34.80              # AWS SDK (S3 upload, Secrets Manager)
