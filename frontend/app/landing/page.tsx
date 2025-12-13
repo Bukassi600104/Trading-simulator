@@ -3,9 +3,23 @@
 import AuthModal from "@/components/AuthModal";
 import { useAuthStore } from "@/stores/authStore";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 export default function LandingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="loading-screen">
+          <div className="t0-spinner" />
+        </div>
+      }
+    >
+      <LandingPageInner />
+    </Suspense>
+  );
+}
+
+function LandingPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [authModalOpen, setAuthModalOpen] = useState(false);

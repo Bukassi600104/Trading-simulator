@@ -5,9 +5,23 @@ import Navbar from "@/components/layout/Navbar";
 import { useAuthStore } from "@/stores/authStore";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 export default function PricingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="loading-screen">
+          <div className="t0-spinner" />
+        </div>
+      }
+    >
+      <PricingPageInner />
+    </Suspense>
+  );
+}
+
+function PricingPageInner() {
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();
   const [authModalOpen, setAuthModalOpen] = useState(false);
