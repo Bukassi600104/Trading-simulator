@@ -16,7 +16,7 @@ RUN wget -qO /tmp/ta-lib.tar.gz "https://prdownloads.sourceforge.net/ta-lib/ta-l
     && tar -xzf /tmp/ta-lib.tar.gz -C /tmp/ta-lib-src --strip-components=1 \
     && cd /tmp/ta-lib-src \
     && ./configure --prefix=/usr \
-    && make -j"$(nproc)" \
+    && make -j1 \
     && make install \
     && cd / \
     && rm -rf /tmp/ta-lib-src /tmp/ta-lib.tar.gz
