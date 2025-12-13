@@ -40,6 +40,10 @@ wheels/
 *.egg
 MANIFEST
 
+# Allow frontend runtime utilities (root lib/ ignore is for Python tooling)
+!frontend/lib/
+!frontend/lib/**
+
 # Virtual environments
 venv/
 ENV/
