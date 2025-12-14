@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies needed for TA-Lib and other packages
+# Install system dependencies needed for building wheels and PostgreSQL drivers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
