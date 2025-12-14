@@ -13,19 +13,16 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Bearer token security
 security = HTTPBearer(auto_error=False)
@@ -47,12 +44,34 @@ class Token(BaseModel):
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    if not plain_password or not hashed_password:
+        return False
+    try:
+        return bcrypt.checkpw(
+            _bcrypt_input(plain_password),
+            hashed_password.encode("utf-8"),
+        )
+    except ValueError:
+        return False
 
 
 def hash_password(password: str) -> str:
     """Generate password hash"""
-    return pwd_context.hash(password)
+    hashed = bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt())
+    return hashed.decode("utf-8")
+
+
+def _bcrypt_input(password: str) -> bytes:
+    """Prepare password bytes for bcrypt.
+
+    Bcrypt only handles the first 72 bytes. To safely support longer passwords
+    (RegisterRequest allows up to 128 chars), we pre-hash with SHA-256 when the
+    UTF-8 byte length exceeds 72 bytes.
+    """
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) <= 72:
+        return password_bytes
+    return hashlib.sha256(password_bytes).digest()
 
 
 def create_access_token(

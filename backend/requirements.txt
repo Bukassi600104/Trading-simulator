@@ -13,8 +13,7 @@ psycopg2-binary>=2.9.9      # Standard driver (needed for Alembic synchronous op
 
 # --- Authentication & Security ---
 python-jose[cryptography]>=3.3.0  # JWT Token generation/decoding
-passlib[bcrypt]>=1.7.4      # Password hashing
-bcrypt>=4.0.0               # BCrypt backend (explicit)
+bcrypt>=4.0.0               # Password hashing backend (used directly)
 python-multipart>=0.0.9     # Handling Form data (login requests)
 
 # --- Real-Time & Async Tasks ---
