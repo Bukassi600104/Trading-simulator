@@ -1,7 +1,11 @@
 """Configuration constants for Trading Simulator"""
 
+import os
 from decimal import Decimal
 from enum import Enum
+
+# Infrastructure URLs
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # Trading Configuration
 DEFAULT_STARTING_BALANCE = Decimal("10000.00")  # $10,000 USDT
