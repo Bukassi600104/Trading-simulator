@@ -21,9 +21,15 @@ class Base(DeclarativeBase):
     pass
 
 
-# Use SSL for non-localhost connections (Supabase, cloud DBs)
+# Use SSL only for external cloud DB connections (e.g. Supabase hosted)
+# Skip SSL for localhost and Railway internal network (.railway.internal)
 _connect_args: dict = {}
-if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
+_needs_ssl = (
+    "localhost" not in DATABASE_URL
+    and "127.0.0.1" not in DATABASE_URL
+    and ".railway.internal" not in DATABASE_URL
+)
+if _needs_ssl:
     _ssl_ctx = ssl.create_default_context()
     _ssl_ctx.check_hostname = False
     _ssl_ctx.verify_mode = ssl.CERT_NONE
