@@ -4,6 +4,7 @@ Uses SQLAlchemy async with PostgreSQL
 """
 
 import os
+import ssl
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -20,7 +21,15 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+# Use SSL for non-localhost connections (Supabase, cloud DBs)
+_connect_args: dict = {}
+if "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
+    _ssl_ctx = ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = ssl.CERT_NONE
+    _connect_args["ssl"] = _ssl_ctx
+
+engine = create_async_engine(DATABASE_URL, echo=False, connect_args=_connect_args)
 
 async_session_maker = async_sessionmaker(
     engine,
