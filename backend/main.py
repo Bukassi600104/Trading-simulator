@@ -59,38 +59,46 @@ def convert_bybit_symbol(bybit_symbol: str) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifecycle manager"""
+    """Application lifecycle manager - resilient to missing services"""
     global market_stream
-    
+
     logger.info("🚀 Starting Terminal Zero API...")
-    
-    # Initialize database tables
-    await init_db()
-    logger.info("💾 Database initialized")
-    
+
+    # Initialize database tables (non-fatal if DB is unavailable)
+    try:
+        await init_db()
+        logger.info("💾 Database initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Database unavailable, skipping init: {e}")
+
     # Initialize portfolio manager (singleton)
-    get_portfolio_manager()
-    
+    try:
+        get_portfolio_manager()
+        logger.info("📈 Portfolio Manager initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Portfolio Manager init failed: {e}")
+
     # Initialize paper exchange (singleton)
-    get_paper_exchange()
-    
+    try:
+        get_paper_exchange()
+        logger.info("📜 Paper Exchange initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Paper Exchange init failed: {e}")
+
     # Initialize market stream service
     market_stream = MarketStreamService()
-    
+
     # Start the Bybit WebSocket connection
     asyncio.create_task(market_stream.start())
-    
+
     # Start price update forwarder
     asyncio.create_task(price_update_forwarder())
-    
-    # Start scheduled jobs
+
+    # Start scheduled jobs (non-fatal if Redis is unavailable)
     asyncio.create_task(scheduler_loop())
-    
-    logger.info("📈 Portfolio Manager initialized")
-    logger.info("📜 Paper Exchange initialized")
-    
+
     yield
-    
+
     # Cleanup
     logger.info("🛑 Shutting down Terminal Zero API...")
     if market_stream:
