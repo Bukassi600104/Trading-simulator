@@ -1,9 +1,26 @@
 "use client";
 
+import { apiFetch } from "@/lib/api";
 import Navbar from "@/components/layout/Navbar";
 import { useAuthStore } from "@/stores/authStore";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+interface JournalEntry {
+  id: string;
+  symbol: string;
+  side: string;
+  entry_price: number;
+  exit_price: number;
+  qty: number;
+  pnl: number;
+  pnl_percent: number;
+  entry_time: string;
+  exit_time: string;
+  notes: string | null;
+  tags: string | null;
+}
 
 interface Trade {
   id: string;
@@ -31,24 +48,50 @@ export default function JournalPage() {
   const [journalModalOpen, setJournalModalOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
+  const [isReady, setIsReady] = useState(false);
+
   useEffect(() => {
     const run = async () => {
       const ok = await checkAuth();
       if (!ok) {
         router.replace("/landing?auth=login");
+      } else {
+        setIsReady(true);
       }
     };
     run();
   }, [checkAuth, router]);
 
-  // Mock trade data
-  const mockTrades: Trade[] = [
-    { id: "1", symbol: "TSLA", date: "2023-10-05", time: "10:30 AM", side: "LONG", pnl: 1650, tags: ["Breakout", "Gap Fill"], emotion: "confident" },
-    { id: "2", symbol: "BTC/USD", date: "2023-10-05", time: "14:15 PM", side: "SHORT", pnl: -320, tags: ["Reversal"], emotion: "fear" },
-    { id: "3", symbol: "ETH/USDT", date: "2023-10-04", time: "09:45 AM", side: "LONG", pnl: 850, tags: ["Trend Follow"], emotion: "confident" },
-    { id: "4", symbol: "SOL/USDT", date: "2023-10-03", time: "11:00 AM", side: "LONG", pnl: -150, tags: ["Scalp"], emotion: "revenge" },
-    { id: "5", symbol: "AAPL", date: "2023-10-02", time: "15:30 PM", side: "SHORT", pnl: 420, tags: ["Breakout"], emotion: "confident" },
-  ];
+  const { data: journalEntries = [] } = useQuery<JournalEntry[]>({
+    queryKey: ["journalEntries"],
+    queryFn: async () => {
+      const res = await apiFetch("/api/journal/entries");
+      if (!res.ok) throw new Error("Failed to fetch journal entries");
+      return res.json();
+    },
+    enabled: isReady,
+  });
+
+  // Transform API entries into the Trade format used by the calendar UI
+  const trades: Trade[] = useMemo(() => {
+    return journalEntries.map((entry) => {
+      const exitDate = new Date(entry.exit_time);
+      const dateStr = `${exitDate.getFullYear()}-${String(exitDate.getMonth() + 1).padStart(2, "0")}-${String(exitDate.getDate()).padStart(2, "0")}`;
+      const timeStr = exitDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+      const tagsList = entry.tags ? entry.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+
+      return {
+        id: entry.id,
+        symbol: entry.symbol,
+        date: dateStr,
+        time: timeStr,
+        side: (entry.side === "BUY" ? "LONG" : "SHORT") as "LONG" | "SHORT",
+        pnl: entry.pnl,
+        tags: tagsList,
+        thesis: entry.notes || undefined,
+      };
+    });
+  }, [journalEntries]);
 
   // Generate calendar data
   const generateCalendarDays = () => {
@@ -69,7 +112,7 @@ export default function JournalPage() {
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const dayTrades = mockTrades.filter((t) => t.date === dateStr);
+      const dayTrades = trades.filter((t) => t.date === dateStr);
       const totalPnl = dayTrades.reduce((sum, t) => sum + t.pnl, 0);
       
       days.push({
@@ -86,7 +129,7 @@ export default function JournalPage() {
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   const selectedDayTrades = selectedDate
-    ? mockTrades.filter((t) => t.date === selectedDate)
+    ? trades.filter((t) => t.date === selectedDate)
     : [];
 
   const handlePrevMonth = () => {

@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.database import get_session
+from app.core.security import TokenData, require_auth
 from app.core.config import TIER_PRICES, UserTier
 from app.models.user import User
 from app.models.payment import Payment, PaymentStatus
@@ -42,10 +42,22 @@ class PaymentInitializeResponse(BaseModel):
 @router.post("/initialize", response_model=PaymentInitializeResponse)
 async def initialize_payment(
     payload: PaymentInitializeRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    token_data: TokenData = Depends(require_auth),
+    db: AsyncSession = Depends(get_session),
 ):
     """Initialize a Paystack transaction"""
+    import uuid as _uuid
+
+    # Fetch actual user from DB (payments need the full User object)
+    stmt = select(User).where(User.id == _uuid.UUID(token_data.user_id))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+
     if not PAYSTACK_SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -140,7 +152,7 @@ async def initialize_payment(
 @router.post("/webhook")
 async def paystack_webhook(
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_session)
 ):
     """Handle Paystack webhooks"""
     # Verify signature

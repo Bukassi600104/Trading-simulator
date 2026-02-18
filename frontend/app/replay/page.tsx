@@ -1,6 +1,6 @@
 "use client";
 
-import Navbar from "@/components/layout/Navbar";
+import AppShell from "@/components/layout/AppShell";
 import { API_BASE } from "@/lib/runtimeConfig";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -247,9 +247,7 @@ function ReplayPageInner() {
   const progress = allCandles.length > 0 ? (currentIndex / allCandles.length) * 100 : 0;
 
   return (
-    <div className="replay-page">
-      <Navbar />
-
+    <AppShell>
       <main className="replay-content">
         <div className="replay-header">
           <div className="header-left">
@@ -646,7 +644,7 @@ function ReplayPageInner() {
           font-size: 14px;
         }
       `}</style>
-    </div>
+    </AppShell>
   );
 }
 

@@ -27,15 +27,10 @@ function LandingPageInner() {
   const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useAuthStore();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  // Allow deep-linking into auth modal from protected pages
   useEffect(() => {
-    if (!mounted) return;
-    if (isAuthenticated) return;
-
+    if (!mounted || isAuthenticated) return;
     const auth = searchParams.get("auth");
     if (auth === "login" || auth === "register") {
       setAuthInitialTab(auth);
@@ -44,12 +39,8 @@ function LandingPageInner() {
   }, [mounted, isAuthenticated, searchParams]);
 
   const handleGetStarted = () => {
-    if (isAuthenticated) {
-      router.push("/dashboard");
-    } else {
-      setAuthInitialTab("register");
-      setAuthModalOpen(true);
-    }
+    if (isAuthenticated) router.push("/dashboard");
+    else { setAuthInitialTab("register"); setAuthModalOpen(true); }
   };
 
   const handleSignIn = () => {
@@ -57,1098 +48,301 @@ function LandingPageInner() {
     setAuthModalOpen(true);
   };
 
+  const features = [
+    { icon: <FeatureIconLive />, title: "Real-Time Data", desc: "Live price feeds from Bybit exchange with sub-second WebSocket updates across 6 trading pairs.", accent: "primary" },
+    { icon: <FeatureIconTarget />, title: "Prop Challenges", desc: "FTMO-style evaluation with drawdown limits, profit targets, and consistency rules.", accent: "amber" },
+    { icon: <FeatureIconJournal />, title: "Smart Journal", desc: "Every trade auto-logged with charts, psychology tags, and AI-powered performance insights.", accent: "lavender" },
+    { icon: <FeatureIconReplay />, title: "Bar Replay", desc: "Practice on historical data. Perfect entries on past market moves at your own pace.", accent: "coral" },
+    { icon: <FeatureIconRisk />, title: "Risk Calculator", desc: "Position sizing based on your risk tolerance. Dynamic margin and liquidation estimates.", accent: "primary" },
+    { icon: <FeatureIconTrophy />, title: "Clan Rankings", desc: "Form clans, compete on leaderboards, and climb the ranks together.", accent: "amber" },
+  ];
+
   return (
-    <div className="landing">
-      {/* Ambient Background Effects */}
-      <div className="ambient-glow" />
-      <div className="grid-overlay" />
+    <div className="relative min-h-screen bg-t0-void overflow-x-hidden">
+      {/* Ambient background */}
+      <div className="t0-ambient" />
+      <div className="fixed inset-0 bg-grid-dots bg-grid pointer-events-none z-0 opacity-60" />
 
-      {/* Navigation */}
-      <nav className="nav">
-        <div className="nav-inner">
-          <div className="logo-group">
-            <div className="logo-mark">
-              <span>T</span>
-              <span className="logo-zero">0</span>
+      {/* ─── NAV ─── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 glass-header">
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between px-8 py-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center font-mono font-bold text-t0-void text-lg tracking-tight">
+              T<span className="opacity-60">0</span>
             </div>
-            <span className="logo-name">Terminal Zero</span>
+            <span className="text-lg font-bold tracking-tight text-dark-50">Terminal Zero</span>
           </div>
 
-          <div className="nav-links">
-            <a href="#features">Features</a>
-            <a href="#process">How It Works</a>
-            <a href="/pricing">Pricing</a>
+          <div className="hidden md:flex items-center gap-10">
+            <a href="#features" className="text-sm font-medium text-dark-400 hover:text-primary-400 transition-colors">Features</a>
+            <a href="#process" className="text-sm font-medium text-dark-400 hover:text-primary-400 transition-colors">How It Works</a>
+            <a href="/pricing" className="text-sm font-medium text-dark-400 hover:text-primary-400 transition-colors">Pricing</a>
           </div>
 
-          <div className="nav-actions">
+          <div className="flex items-center gap-3">
             {mounted && isAuthenticated ? (
-              <button className="btn-dashboard" onClick={() => router.push("/dashboard")}> 
+              <button onClick={() => router.push("/dashboard")} className="t0-btn t0-btn-primary">
                 Dashboard
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
             ) : (
               <>
-                <button className="btn-signin" onClick={handleSignIn}>
-                  Sign In
-                </button>
-                <button className="btn-cta" onClick={handleGetStarted}>
-                  Start Free
-                </button>
+                <button onClick={handleSignIn} className="t0-btn t0-btn-ghost text-dark-300 border border-dark-700 hover:border-primary-500 hover:text-primary-400">Sign In</button>
+                <button onClick={handleGetStarted} className="t0-btn t0-btn-primary">Start Free</button>
               </>
             )}
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="hero-content animate-slide-up">
-          <div className="hero-badge">
-            <span className="badge-dot" />
-            Live Market Data • Zero Risk
+      {/* ─── HERO ─── */}
+      <section className="relative z-10 min-h-screen max-w-[1400px] mx-auto px-8 pt-32 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        <div className="max-w-[560px] animate-slide-up">
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-primary-500/20 bg-primary-500/8 mb-7">
+            <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse" />
+            <span className="text-xs font-semibold text-primary-400 tracking-wide">LIVE MARKET DATA &middot; ZERO RISK</span>
           </div>
 
-          <h1>
-            <span className="hero-line">Ground Zero for</span>
-            <span className="hero-line gradient">Professional Trading</span>
+          <h1 className="text-5xl lg:text-[60px] font-extrabold leading-[1.05] tracking-[-2px] mb-6">
+            <span className="block text-dark-50">Master the Markets.</span>
+            <span className="block text-gradient">Zero Risk.</span>
           </h1>
 
-          <p className="hero-desc">
-            Master crypto trading with real market conditions and $10,000 in simulated funds. 
-            Perfect for prop firm training, strategy testing, and skill development.
+          <p className="text-lg leading-relaxed text-dark-400 mb-9">
+            Professional crypto trading simulator with real-time Bybit data and $10,000 in simulated capital.
+            Built for prop firm prep, strategy testing, and deliberate skill development.
           </p>
 
-          <div className="hero-cta-group">
-            <button className="btn-primary-lg" onClick={handleGetStarted}>
+          <div className="mb-12">
+            <button onClick={handleGetStarted} className="t0-btn t0-btn-primary t0-btn-lg group">
               <span>Start Trading Free</span>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M4.167 10h11.666M10 4.167L15.833 10 10 15.833" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <svg className="transition-transform group-hover:translate-x-1" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M4.167 10h11.666M10 4.167L15.833 10 10 15.833" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            <span className="hero-note">No credit card required</span>
+            <span className="block mt-3 text-sm text-dark-500">No credit card required</span>
           </div>
 
-          <div className="hero-metrics">
-            <div className="metric">
-              <span className="metric-value">$10K</span>
-              <span className="metric-label">Starting Capital</span>
-            </div>
-            <div className="metric-divider" />
-            <div className="metric">
-              <span className="metric-value">0ms</span>
-              <span className="metric-label">Latency</span>
-            </div>
-            <div className="metric-divider" />
-            <div className="metric">
-              <span className="metric-value">24/7</span>
-              <span className="metric-label">Market Access</span>
-            </div>
+          <div className="flex items-center gap-8">
+            {[
+              { value: "$10K", label: "Starting Capital" },
+              { value: "6", label: "Trading Pairs" },
+              { value: "<1s", label: "Latency" },
+            ].map((m, i) => (
+              <div key={i} className="flex flex-col gap-1">
+                <span className="font-mono text-2xl font-bold text-primary-400">{m.value}</span>
+                <span className="text-xs text-dark-500">{m.label}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Terminal Preview */}
-        <div className="terminal-preview animate-slide-up delay-200">
-          <div className="terminal-chrome">
-            <div className="chrome-dots">
-              <span className="dot red" />
-              <span className="dot yellow" />
-              <span className="dot green" />
+        {/* Terminal Preview Card */}
+        <div className="animate-slide-up delay-200 relative">
+          <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] bg-t0-depth shadow-terminal">
+            {/* Chrome bar */}
+            <div className="flex items-center px-4 py-3 bg-t0-void/80 border-b border-white/[0.05]">
+              <div className="flex gap-2">
+                <span className="w-3 h-3 rounded-full bg-coral-500" />
+                <span className="w-3 h-3 rounded-full bg-amber-500" />
+                <span className="w-3 h-3 rounded-full bg-primary-500" />
+              </div>
+              <span className="flex-1 text-center font-mono text-xs text-dark-500">T0 — BTC-USDT Perpetual</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider">Live</span>
+              </div>
             </div>
-            <span className="chrome-title">T0 — BTC-USDT</span>
-            <div className="chrome-status">
-              <span className="status-live" />
-              LIVE
+
+            {/* Body */}
+            <div className="p-5">
+              {/* Price row */}
+              <div className="flex items-start justify-between mb-5">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-xs font-semibold text-dark-500">BTC</span>
+                  <span className="font-mono text-3xl font-bold text-dark-50">98,245.50</span>
+                  <span className="font-mono text-sm font-semibold text-profit-400 bg-profit-400/10 px-2.5 py-1 rounded-md">+2.45%</span>
+                </div>
+                <div className="flex gap-5 text-right">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] text-dark-600">24h High</span>
+                    <span className="font-mono text-xs text-dark-400">99,120.00</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] text-dark-600">24h Low</span>
+                    <span className="font-mono text-xs text-dark-400">95,880.00</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chart mockup */}
+              <div className="relative h-44 rounded-xl bg-t0-void mb-4 overflow-hidden">
+                <div className="absolute inset-0 bg-grid-dots bg-grid opacity-30" />
+                <div className="absolute bottom-0 left-0 right-0 h-full flex items-end gap-1 px-4 pb-3">
+                  {[68, 45, 72, 82, 55, 78, 90, 62, 85, 48, 75, 88, 52, 70, 95, 60, 80, 42, 76, 85, 65, 92].map((h, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 min-w-[4px] rounded-sm transition-all duration-300 ${
+                        i % 3 === 1 ? "bg-gradient-to-t from-loss-600 to-loss-400" : "bg-gradient-to-t from-profit-600 to-profit-400"
+                      }`}
+                      style={{ height: `${h}%` }}
+                    />
+                  ))}
+                </div>
+                {/* Entry line */}
+                <div className="absolute top-[45%] left-0 right-0 border-t border-dashed border-primary-500/40">
+                  <span className="absolute -top-2.5 right-2 text-[9px] font-mono text-primary-400 bg-primary-500/10 px-1.5 py-0.5 rounded">Entry 97,120</span>
+                </div>
+              </div>
+
+              {/* Position card */}
+              <div className="rounded-xl bg-t0-void/60 border border-white/[0.05] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-medium text-dark-500">Open Position</span>
+                  <span className="t0-badge t0-badge-profit text-[10px]">LONG 10x</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Entry", value: "97,120.00" },
+                    { label: "Size", value: "0.15 BTC" },
+                    { label: "P&L", value: "+$168.82", profit: true },
+                  ].map((d, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                      <span className="text-[10px] text-dark-600">{d.label}</span>
+                      <span className={`font-mono text-sm font-semibold ${d.profit ? "text-profit-400" : "text-dark-100"}`}>{d.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-
-          <div className="terminal-body">
-            {/* Price Header */}
-            <div className="price-header">
-              <div className="price-main">
-                <span className="symbol">BTC</span>
-                <span className="price-value">98,245.50</span>
-                <span className="price-change profit">+2.45%</span>
-              </div>
-              <div className="price-stats">
-                <div className="stat-item">
-                  <span className="stat-label">24h High</span>
-                  <span className="stat-value">99,120.00</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">24h Low</span>
-                  <span className="stat-value">95,880.00</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Candlestick Visualization */}
-            <div className="chart-area">
-              <div className="candles">
-                {[68, 45, 72, 82, 55, 78, 90, 62, 85, 48, 75, 88, 52, 70, 95, 60, 80, 42, 76, 85].map((h, i) => (
-                  <div key={i} className={`candle ${i % 3 === 1 ? 'bear' : 'bull'}`} style={{height: `${h}%`}} />
-                ))}
-              </div>
-              <div className="chart-grid" />
-            </div>
-
-            {/* Position Card */}
-            <div className="position-card">
-              <div className="position-header">
-                <span className="position-label">Open Position</span>
-                <span className="position-type long">LONG</span>
-              </div>
-              <div className="position-details">
-                <div className="detail">
-                  <span>Entry</span>
-                  <span className="mono">97,120.00</span>
-                </div>
-                <div className="detail">
-                  <span>Size</span>
-                  <span className="mono">0.15 BTC</span>
-                </div>
-                <div className="detail pnl">
-                  <span>P&L</span>
-                  <span className="profit mono">+$168.82</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Glow effect behind terminal */}
+          <div className="absolute -inset-8 -z-10 rounded-3xl bg-primary-500/[0.04] blur-3xl" />
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="features">
-        <div className="section-header">
-          <span className="section-tag">Features</span>
-          <h2>Built for Serious Traders</h2>
-          <p>Everything you need to develop, test, and refine your trading strategy.</p>
+      {/* ─── FEATURES ─── */}
+      <section id="features" className="relative z-10 max-w-[1200px] mx-auto px-8 py-24">
+        <div className="text-center max-w-xl mx-auto mb-16">
+          <span className="inline-block px-4 py-1.5 rounded-full bg-primary-500/10 text-[11px] font-bold text-primary-400 uppercase tracking-widest mb-5">Features</span>
+          <h2 className="text-4xl font-extrabold text-dark-50 tracking-tight mb-4">Engineered for Serious Traders</h2>
+          <p className="text-lg text-dark-400 leading-relaxed">Everything you need to develop, test, and refine your trading edge.</p>
         </div>
 
-        <div className="features-grid">
-          {[
-            {
-              icon: "⚡",
-              title: "Real-Time Data",
-              desc: "Live price feeds from Bybit exchange with sub-second updates."
-            },
-            {
-              icon: "🎯",
-              title: "Prop Firm Mode",
-              desc: "Practice with FTMO-style rules: drawdown limits, profit targets, consistency."
-            },
-            {
-              icon: "📊",
-              title: "Auto Journal",
-              desc: "Every trade logged automatically with charts, notes, and analytics."
-            },
-            {
-              icon: "⏪",
-              title: "Bar Replay",
-              desc: "Practice on historical data. Perfect your entries on past market moves."
-            },
-            {
-              icon: "🔧",
-              title: "Risk Calculator",
-              desc: "Position sizing based on your risk tolerance. Never blow up again."
-            },
-            {
-              icon: "🏆",
-              title: "Leaderboards",
-              desc: "Compete with other traders. Track your progress on clan rankings."
-            }
-          ].map((feature, i) => (
-            <div key={i} className="feature-card animate-slide-up" style={{animationDelay: `${i * 100}ms`}}>
-              <div className="feature-icon">{feature.icon}</div>
-              <h3>{feature.title}</h3>
-              <p>{feature.desc}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {features.map((f, i) => (
+            <div key={i} className="group t0-card p-7 animate-slide-up relative overflow-hidden" style={{ animationDelay: `${i * 80}ms` }}>
+              <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${
+                f.accent === "primary" ? "from-primary-500 to-primary-300" :
+                f.accent === "amber" ? "from-amber-500 to-amber-400" :
+                f.accent === "lavender" ? "from-lavender-600 to-lavender-400" :
+                "from-coral-500 to-coral-400"
+              } opacity-0 group-hover:opacity-100 transition-opacity`} />
+              <div className="mb-4 text-dark-400 group-hover:text-primary-400 transition-colors">{f.icon}</div>
+              <h3 className="text-base font-bold text-dark-100 mb-2">{f.title}</h3>
+              <p className="text-sm text-dark-400 leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Process Section */}
-      <section id="process" className="process">
-        <div className="section-header">
-          <span className="section-tag">How It Works</span>
-          <h2>From Zero to Trading in 60 Seconds</h2>
+      {/* ─── HOW IT WORKS ─── */}
+      <section id="process" className="relative z-10 max-w-[900px] mx-auto px-8 py-20">
+        <div className="text-center max-w-xl mx-auto mb-16">
+          <span className="inline-block px-4 py-1.5 rounded-full bg-amber-500/10 text-[11px] font-bold text-amber-400 uppercase tracking-widest mb-5">How It Works</span>
+          <h2 className="text-4xl font-extrabold text-dark-50 tracking-tight">Zero to Trading in 60 Seconds</h2>
         </div>
 
-        <div className="process-steps">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
-            { num: "01", title: "Create Account", desc: "Quick signup with email or Google. Completely free." },
-            { num: "02", title: "Get Funded", desc: "$10,000 in simulated capital loaded instantly." },
-            { num: "03", title: "Start Trading", desc: "Execute trades on live markets. Zero risk." }
+            { num: "01", title: "Create Account", desc: "Quick signup with email. Completely free, no card required." },
+            { num: "02", title: "Get Funded", desc: "$10,000 in simulated capital loaded into your portfolio instantly." },
+            { num: "03", title: "Start Trading", desc: "Execute trades on live markets with real-time Bybit data. Zero risk." },
           ].map((step, i) => (
-            <div key={i} className="step-card animate-slide-up" style={{animationDelay: `${i * 150}ms`}}>
-              <span className="step-num">{step.num}</span>
-              <h3>{step.title}</h3>
-              <p>{step.desc}</p>
+            <div key={i} className="text-center animate-slide-up" style={{ animationDelay: `${i * 120}ms` }}>
+              <span className="block font-mono text-5xl font-bold text-primary-500/20 mb-5">{step.num}</span>
+              <h3 className="text-lg font-bold text-dark-100 mb-3">{step.title}</h3>
+              <p className="text-sm text-dark-400 leading-relaxed">{step.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="cta-section">
-        <div className="cta-box">
-          <h2>Ready to Level Up Your Trading?</h2>
-          <p>Join thousands of traders practicing risk-free every day.</p>
-          <button className="btn-primary-lg" onClick={handleGetStarted}>
+      {/* ─── CTA ─── */}
+      <section className="relative z-10 px-8 py-20">
+        <div className="max-w-[700px] mx-auto text-center p-16 rounded-3xl bg-gradient-to-br from-primary-500/[0.06] to-lavender-500/[0.03] border border-primary-500/15">
+          <h2 className="text-3xl font-extrabold text-dark-50 mb-3 tracking-tight">Ready to Level Up?</h2>
+          <p className="text-lg text-dark-400 mb-8">Join thousands of traders practicing risk-free every day.</p>
+          <button onClick={handleGetStarted} className="t0-btn t0-btn-primary t0-btn-lg group">
             <span>Start Trading Now</span>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M4.167 10h11.666M10 4.167L15.833 10 10 15.833" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg className="transition-transform group-hover:translate-x-1" width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M4.167 10h11.666M10 4.167L15.833 10 10 15.833" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="footer">
-        <div className="footer-inner">
-          <div className="footer-brand">
-            <div className="logo-mark small">
-              <span>T</span>
-              <span className="logo-zero">0</span>
-            </div>
-            <span>Terminal Zero</span>
+      {/* ─── FOOTER ─── */}
+      <footer className="relative z-10 border-t border-white/[0.05] py-10 px-8">
+        <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center font-mono font-bold text-t0-void text-sm">T<span className="opacity-60">0</span></div>
+            <span className="font-semibold text-dark-100">Terminal Zero</span>
           </div>
-          <p className="disclaimer">
-            Trading simulator for educational purposes. No real funds involved.
-          </p>
-          <div className="footer-links">
-            <a href="#">Terms</a>
-            <a href="#">Privacy</a>
-            <a href="#">Contact</a>
+          <p className="text-xs text-dark-600">Trading simulator for educational purposes. No real funds involved.</p>
+          <div className="flex gap-6">
+            <a href="#" className="text-xs text-dark-500 hover:text-primary-400 transition-colors">Terms</a>
+            <a href="#" className="text-xs text-dark-500 hover:text-primary-400 transition-colors">Privacy</a>
+            <a href="#" className="text-xs text-dark-500 hover:text-primary-400 transition-colors">Contact</a>
           </div>
         </div>
       </footer>
 
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        initialTab={authInitialTab}
-      />
-
-      <style jsx>{`
-        /* ═══════════════════════════════════════════════════════════════
-           LANDING PAGE STYLES - Terminal Zero
-           ═══════════════════════════════════════════════════════════════ */
-        
-        .landing {
-          min-height: 100vh;
-          background: var(--void);
-          position: relative;
-          overflow-x: hidden;
-        }
-
-        /* Ambient Effects */
-        .ambient-glow {
-          position: fixed;
-          top: -50%;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 150%;
-          height: 100%;
-          background: radial-gradient(ellipse 50% 30% at 50% 0%, rgba(0, 230, 160, 0.08), transparent);
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        .grid-overlay {
-          position: fixed;
-          inset: 0;
-          background-image: 
-            linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
-          background-size: 60px 60px;
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           NAVIGATION
-           ═══════════════════════════════════════════════════════════════ */
-        .nav {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          z-index: 100;
-          padding: 16px 32px;
-          background: rgba(5, 8, 15, 0.8);
-          backdrop-filter: blur(20px);
-          border-bottom: 1px solid var(--border-subtle);
-        }
-
-        .nav-inner {
-          max-width: 1400px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .logo-group {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-
-        .logo-mark {
-          width: 44px;
-          height: 44px;
-          background: linear-gradient(135deg, var(--mint-500), var(--mint-600));
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: var(--font-mono);
-          font-weight: 700;
-          font-size: 18px;
-          color: var(--void);
-          gap: 1px;
-        }
-
-        .logo-mark.small {
-          width: 32px;
-          height: 32px;
-          font-size: 14px;
-          border-radius: 8px;
-        }
-
-        .logo-zero {
-          color: var(--void);
-          opacity: 0.7;
-        }
-
-        .logo-name {
-          font-family: var(--font-display);
-          font-size: 20px;
-          font-weight: 700;
-          color: var(--text-primary);
-          letter-spacing: -0.5px;
-        }
-
-        .nav-links {
-          display: flex;
-          gap: 40px;
-        }
-
-        .nav-links a {
-          color: var(--text-muted);
-          text-decoration: none;
-          font-size: 14px;
-          font-weight: 500;
-          transition: color var(--transition-fast);
-        }
-
-        .nav-links a:hover {
-          color: var(--mint-400);
-        }
-
-        .nav-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .btn-signin {
-          padding: 10px 20px;
-          background: transparent;
-          border: 1px solid var(--border-default);
-          border-radius: var(--radius-md);
-          color: var(--text-secondary);
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all var(--transition-fast);
-        }
-
-        .btn-signin:hover {
-          border-color: var(--mint-500);
-          color: var(--mint-400);
-        }
-
-        .btn-cta, .btn-dashboard {
-          padding: 10px 20px;
-          background: linear-gradient(135deg, var(--mint-500), var(--mint-600));
-          border: none;
-          border-radius: var(--radius-md);
-          color: var(--void);
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all var(--transition-fast);
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .btn-cta:hover, .btn-dashboard:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 20px rgba(0, 230, 160, 0.3);
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           HERO SECTION
-           ═══════════════════════════════════════════════════════════════ */
-        .hero {
-          min-height: 100vh;
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 140px 32px 80px;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 80px;
-          align-items: center;
-          position: relative;
-          z-index: 1;
-        }
-
-        .hero-content {
-          max-width: 560px;
-        }
-
-        .hero-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 10px;
-          padding: 8px 16px;
-          background: rgba(0, 230, 160, 0.08);
-          border: 1px solid rgba(0, 230, 160, 0.2);
-          border-radius: var(--radius-full);
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--mint-400);
-          margin-bottom: 28px;
-        }
-
-        .badge-dot {
-          width: 8px;
-          height: 8px;
-          background: var(--mint-500);
-          border-radius: 50%;
-          animation: pulse-glow 2s infinite;
-        }
-
-        .hero h1 {
-          font-size: 60px;
-          font-weight: 800;
-          line-height: 1.05;
-          letter-spacing: -2px;
-          margin-bottom: 24px;
-        }
-
-        .hero-line {
-          display: block;
-          color: var(--text-primary);
-        }
-
-        .hero-line.gradient {
-          background: linear-gradient(135deg, var(--mint-400), var(--mint-200));
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .hero-desc {
-          font-size: 18px;
-          line-height: 1.7;
-          color: var(--text-secondary);
-          margin-bottom: 36px;
-        }
-
-        .hero-cta-group {
-          margin-bottom: 48px;
-        }
-
-        .btn-primary-lg {
-          padding: 18px 32px;
-          background: linear-gradient(135deg, var(--mint-500), var(--mint-600));
-          border: none;
-          border-radius: var(--radius-lg);
-          color: var(--void);
-          font-size: 17px;
-          font-weight: 700;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          transition: all var(--transition-base);
-        }
-
-        .btn-primary-lg:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 8px 32px rgba(0, 230, 160, 0.4);
-        }
-
-        .btn-primary-lg svg {
-          transition: transform var(--transition-fast);
-        }
-
-        .btn-primary-lg:hover svg {
-          transform: translateX(4px);
-        }
-
-        .hero-note {
-          display: block;
-          margin-top: 14px;
-          font-size: 14px;
-          color: var(--text-ghost);
-        }
-
-        .hero-metrics {
-          display: flex;
-          align-items: center;
-          gap: 32px;
-        }
-
-        .metric {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .metric-value {
-          font-family: var(--font-mono);
-          font-size: 28px;
-          font-weight: 700;
-          color: var(--mint-400);
-        }
-
-        .metric-label {
-          font-size: 13px;
-          color: var(--text-muted);
-        }
-
-        .metric-divider {
-          width: 1px;
-          height: 40px;
-          background: var(--border-default);
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           TERMINAL PREVIEW
-           ═══════════════════════════════════════════════════════════════ */
-        .terminal-preview {
-          background: var(--surface);
-          border: 1px solid var(--border-subtle);
-          border-radius: var(--radius-xl);
-          overflow: hidden;
-          box-shadow: 
-            0 0 0 1px rgba(0, 230, 160, 0.05),
-            0 20px 60px rgba(0, 0, 0, 0.5),
-            0 0 100px rgba(0, 230, 160, 0.05);
-        }
-
-        .terminal-chrome {
-          display: flex;
-          align-items: center;
-          padding: 14px 18px;
-          background: var(--depth);
-          border-bottom: 1px solid var(--border-subtle);
-        }
-
-        .chrome-dots {
-          display: flex;
-          gap: 8px;
-        }
-
-        .dot {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-        }
-
-        .dot.red { background: #ff5f57; }
-        .dot.yellow { background: #febc2e; }
-        .dot.green { background: #28c840; }
-
-        .chrome-title {
-          flex: 1;
-          text-align: center;
-          font-family: var(--font-mono);
-          font-size: 13px;
-          color: var(--text-muted);
-        }
-
-        .chrome-status {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--mint-400);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .status-live {
-          width: 6px;
-          height: 6px;
-          background: var(--mint-500);
-          border-radius: 50%;
-          animation: pulse-glow 1.5s infinite;
-        }
-
-        .terminal-body {
-          padding: 20px;
-        }
-
-        .price-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 20px;
-        }
-
-        .price-main {
-          display: flex;
-          align-items: baseline;
-          gap: 12px;
-        }
-
-        .symbol {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-muted);
-        }
-
-        .price-value {
-          font-family: var(--font-mono);
-          font-size: 32px;
-          font-weight: 700;
-          color: var(--text-primary);
-        }
-
-        .price-change {
-          font-family: var(--font-mono);
-          font-size: 14px;
-          font-weight: 600;
-          padding: 4px 10px;
-          border-radius: var(--radius-sm);
-        }
-
-        .price-change.profit {
-          background: var(--profit-glow);
-          color: var(--profit-400);
-        }
-
-        .price-stats {
-          display: flex;
-          gap: 20px;
-        }
-
-        .stat-item {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 2px;
-        }
-
-        .stat-item .stat-label {
-          font-size: 11px;
-          color: var(--text-ghost);
-        }
-
-        .stat-item .stat-value {
-          font-family: var(--font-mono);
-          font-size: 13px;
-          color: var(--text-secondary);
-        }
-
-        /* Chart Area */
-        .chart-area {
-          position: relative;
-          height: 180px;
-          margin-bottom: 16px;
-          border-radius: var(--radius-md);
-          overflow: hidden;
-          background: var(--abyss);
-        }
-
-        .candles {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 100%;
-          display: flex;
-          align-items: flex-end;
-          gap: 4px;
-          padding: 16px;
-        }
-
-        .candle {
-          flex: 1;
-          border-radius: 2px;
-          min-width: 6px;
-          transition: height 0.3s ease;
-        }
-
-        .candle.bull {
-          background: linear-gradient(180deg, var(--profit-400), var(--profit-600));
-        }
-
-        .candle.bear {
-          background: linear-gradient(180deg, var(--loss-400), var(--loss-600));
-        }
-
-        .chart-grid {
-          position: absolute;
-          inset: 0;
-          background-image: 
-            linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
-          background-size: 30px 30px;
-          pointer-events: none;
-        }
-
-        /* Position Card */
-        .position-card {
-          background: var(--depth);
-          border: 1px solid var(--border-subtle);
-          border-radius: var(--radius-md);
-          padding: 14px;
-        }
-
-        .position-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .position-label {
-          font-size: 12px;
-          color: var(--text-muted);
-          font-weight: 500;
-        }
-
-        .position-type {
-          font-size: 11px;
-          font-weight: 700;
-          padding: 4px 10px;
-          border-radius: var(--radius-sm);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .position-type.long {
-          background: var(--profit-glow);
-          color: var(--profit-400);
-        }
-
-        .position-details {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 12px;
-        }
-
-        .detail {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .detail span:first-child {
-          font-size: 11px;
-          color: var(--text-ghost);
-        }
-
-        .detail .mono {
-          font-family: var(--font-mono);
-          font-size: 14px;
-          color: var(--text-primary);
-        }
-
-        .detail.pnl .profit {
-          color: var(--profit-400);
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           FEATURES SECTION
-           ═══════════════════════════════════════════════════════════════ */
-        .features {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 120px 32px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .section-header {
-          text-align: center;
-          max-width: 600px;
-          margin: 0 auto 64px;
-        }
-
-        .section-tag {
-          display: inline-block;
-          padding: 6px 14px;
-          background: rgba(0, 230, 160, 0.1);
-          border-radius: var(--radius-full);
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--mint-400);
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          margin-bottom: 20px;
-        }
-
-        .section-header h2 {
-          font-size: 40px;
-          font-weight: 800;
-          color: var(--text-primary);
-          margin-bottom: 16px;
-          letter-spacing: -1px;
-        }
-
-        .section-header p {
-          font-size: 18px;
-          color: var(--text-secondary);
-          line-height: 1.6;
-        }
-
-        .features-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 24px;
-        }
-
-        .feature-card {
-          background: var(--surface);
-          border: 1px solid var(--border-subtle);
-          border-radius: var(--radius-lg);
-          padding: 28px;
-          transition: all var(--transition-base);
-        }
-
-        .feature-card:hover {
-          border-color: var(--border-default);
-          transform: translateY(-4px);
-          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-        }
-
-        .feature-icon {
-          font-size: 32px;
-          margin-bottom: 16px;
-        }
-
-        .feature-card h3 {
-          font-size: 18px;
-          font-weight: 700;
-          color: var(--text-primary);
-          margin-bottom: 10px;
-        }
-
-        .feature-card p {
-          font-size: 14px;
-          color: var(--text-secondary);
-          line-height: 1.6;
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           PROCESS SECTION
-           ═══════════════════════════════════════════════════════════════ */
-        .process {
-          max-width: 1000px;
-          margin: 0 auto;
-          padding: 80px 32px 120px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .process-steps {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 32px;
-        }
-
-        .step-card {
-          text-align: center;
-          padding: 32px;
-        }
-
-        .step-num {
-          font-family: var(--font-mono);
-          font-size: 48px;
-          font-weight: 700;
-          color: var(--mint-500);
-          opacity: 0.3;
-          margin-bottom: 20px;
-          display: block;
-        }
-
-        .step-card h3 {
-          font-size: 20px;
-          font-weight: 700;
-          color: var(--text-primary);
-          margin-bottom: 12px;
-        }
-
-        .step-card p {
-          font-size: 15px;
-          color: var(--text-secondary);
-          line-height: 1.6;
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           CTA SECTION
-           ═══════════════════════════════════════════════════════════════ */
-        .cta-section {
-          padding: 80px 32px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .cta-box {
-          max-width: 700px;
-          margin: 0 auto;
-          text-align: center;
-          padding: 64px 48px;
-          background: linear-gradient(135deg, rgba(0, 230, 160, 0.05), rgba(0, 230, 160, 0.02));
-          border: 1px solid rgba(0, 230, 160, 0.15);
-          border-radius: var(--radius-xl);
-        }
-
-        .cta-box h2 {
-          font-size: 36px;
-          font-weight: 800;
-          color: var(--text-primary);
-          margin-bottom: 12px;
-          letter-spacing: -0.5px;
-        }
-
-        .cta-box p {
-          font-size: 18px;
-          color: var(--text-secondary);
-          margin-bottom: 32px;
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           FOOTER
-           ═══════════════════════════════════════════════════════════════ */
-        .footer {
-          border-top: 1px solid var(--border-subtle);
-          padding: 40px 32px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .footer-inner {
-          max-width: 1200px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .footer-brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-weight: 600;
-          color: var(--text-primary);
-        }
-
-        .disclaimer {
-          font-size: 13px;
-          color: var(--text-ghost);
-        }
-
-        .footer-links {
-          display: flex;
-          gap: 24px;
-        }
-
-        .footer-links a {
-          font-size: 13px;
-          color: var(--text-muted);
-          text-decoration: none;
-          transition: color var(--transition-fast);
-        }
-
-        .footer-links a:hover {
-          color: var(--mint-400);
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           RESPONSIVE
-           ═══════════════════════════════════════════════════════════════ */
-        @media (max-width: 1024px) {
-          .hero {
-            grid-template-columns: 1fr;
-            gap: 60px;
-            text-align: center;
-          }
-
-          .hero-content {
-            max-width: 100%;
-          }
-
-          .hero-metrics {
-            justify-content: center;
-          }
-
-          .terminal-preview {
-            max-width: 500px;
-            margin: 0 auto;
-          }
-
-          .features-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        @media (max-width: 768px) {
-          .nav-links {
-            display: none;
-          }
-
-          .hero h1 {
-            font-size: 40px;
-          }
-
-          .features-grid,
-          .process-steps {
-            grid-template-columns: 1fr;
-          }
-
-          .footer-inner {
-            flex-direction: column;
-            gap: 20px;
-            text-align: center;
-          }
-        }
-
-        /* ═══════════════════════════════════════════════════════════════
-           ANIMATIONS
-           ═══════════════════════════════════════════════════════════════ */
-        .animate-slide-up {
-          opacity: 0;
-          animation: slide-up 0.8s ease-out forwards;
-        }
-
-        @keyframes slide-up {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes pulse-glow {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} initialTab={authInitialTab} />
     </div>
+  );
+}
+
+/* ─── Feature Icons (SVG) ─── */
+function FeatureIconLive() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
+function FeatureIconTarget() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+function FeatureIconJournal() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  );
+}
+function FeatureIconReplay() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+    </svg>
+  );
+}
+function FeatureIconRisk() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+function FeatureIconTrophy() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+    </svg>
   );
 }

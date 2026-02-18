@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Navbar from "@/components/layout/Navbar";
-import AuthModal from "@/components/AuthModal";
+import AppShell from "@/components/layout/AppShell";
 
 interface ClanMember {
   id: string;
@@ -34,7 +33,6 @@ interface Message {
 }
 
 export default function CommunityPage() {
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"my-clan" | "leaderboard" | "battles">("my-clan");
   const [chatMessage, setChatMessage] = useState("");
 
@@ -79,14 +77,7 @@ export default function CommunityPage() {
   };
 
   return (
-    <div className="community-page">
-      <Navbar onOpenAuth={() => setAuthModalOpen(true)} />
-
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
-
+    <AppShell>
       <main className="community-content">
         <div className="page-header">
           <h1>Community</h1>
@@ -870,6 +861,6 @@ export default function CommunityPage() {
           }
         }
       `}</style>
-    </div>
+    </AppShell>
   );
 }

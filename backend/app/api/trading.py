@@ -6,13 +6,16 @@ REST endpoints for trading operations:
 - Close positions
 - Get portfolio state
 - Update leverage
+
+All endpoints require authentication via JWT bearer token.
+Per-user rate limiting is applied to order placement.
 """
 
 import uuid
 from decimal import Decimal
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +29,7 @@ from app.core.config import (
     OrderType,
 )
 from app.core.database import get_session
+from app.core.security import TokenData, get_user_id_from_token, require_auth
 from app.models.order import Order, OrderStatus
 from app.models.portfolio import Portfolio
 from jesse_custom.engine import get_portfolio_manager
@@ -51,6 +55,12 @@ class PlaceOrderRequest(BaseModel):
     leverage: Optional[int] = Field(
         None, description="Override leverage for this trade"
     )
+    stop_loss: Optional[Decimal] = Field(
+        None, description="Stop-loss price (auto-closes position)"
+    )
+    take_profit: Optional[Decimal] = Field(
+        None, description="Take-profit price (auto-closes position)"
+    )
 
 
 class ClosePositionRequest(BaseModel):
@@ -72,35 +82,72 @@ class PortfolioResponse(BaseModel):
         extra = "allow"
 
 
-# Temporary user_id helper (in production, this comes from JWT auth)
-def get_demo_user_id() -> uuid.UUID:
-    """Get a demo user ID for testing"""
-    return uuid.UUID("00000000-0000-0000-0000-000000000001")
+def _resolve_user_id(
+    token_data: TokenData,
+    user_id_query: Optional[str] = None,
+) -> uuid.UUID:
+    """Resolve user ID from JWT token, falling back to query param for
+    backward compatibility with demo users only."""
+    jwt_uid = get_user_id_from_token(token_data)
+
+    # If a query param is provided but differs from JWT, reject unless demo
+    demo_uid = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    if user_id_query:
+        try:
+            query_uid = uuid.UUID(user_id_query)
+        except ValueError:
+            return jwt_uid
+        # Only allow override to demo user for backward compat
+        if query_uid == demo_uid and jwt_uid == demo_uid:
+            return demo_uid
+        # Otherwise always use the JWT user
+        return jwt_uid
+    return jwt_uid
 
 
 @router.post("/orders")
 async def place_order(
-    request: PlaceOrderRequest, 
+    request: PlaceOrderRequest,
+    req: Request,
+    token_data: TokenData = Depends(require_auth),
     user_id: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_session),
 ):
-    """
-    Place a new trading order.
-    
+    """Place a new trading order.
+
     For market orders, executes immediately at current price.
+    Rate limited to 30 requests per minute per user.
     """
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
+    # Per-user rate limiting via Redis
+    from app.core.security import get_redis
+
+    uid = _resolve_user_id(token_data, user_id)
+
+    r = await get_redis()
+    rate_key = f"rate:orders:{uid}"
+    current = await r.incr(rate_key)
+    if current == 1:
+        await r.expire(rate_key, 60)
+    if current > 30:
+        ttl = await r.ttl(rate_key)
         raise HTTPException(
-            status_code=400, detail="Invalid user_id format"
-        ) from err
-    
+            status_code=429,
+            detail=f"Order rate limit exceeded. Try again in {ttl} seconds.",
+            headers={"Retry-After": str(ttl)},
+        )
+
+    # Validate symbol
+    if request.symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Symbol not supported. Supported: {SUPPORTED_SYMBOLS}",
+        )
+
     # Validate leverage if provided
     if request.leverage and request.leverage not in SUPPORTED_LEVERAGE:
         raise HTTPException(
             status_code=400,
-            detail=f"Leverage must be one of: {SUPPORTED_LEVERAGE}"
+            detail=f"Leverage must be one of: {SUPPORTED_LEVERAGE}",
         )
 
     # Validate order-type-specific fields
@@ -108,15 +155,14 @@ async def place_order(
         raise HTTPException(status_code=400, detail="Limit orders require price")
 
     if request.order_type == OrderType.STOP:
-        # Backward compatible: older clients may send stop trigger as `price`
         if request.stop_price is None and request.price is not None:
             request.stop_price = request.price
             request.price = None
         if request.stop_price is None:
             raise HTTPException(status_code=400, detail="Stop orders require stop_price")
-    
+
     exchange = get_paper_exchange()
-    
+
     order = OrderRequest(
         symbol=request.symbol,
         side=request.side,
@@ -125,14 +171,16 @@ async def place_order(
         price=request.price,
         stop_price=request.stop_price,
         reduce_only=request.reduce_only,
-        leverage=request.leverage
+        leverage=request.leverage,
+        stop_loss=request.stop_loss,
+        take_profit=request.take_profit,
     )
-    
+
     result = await exchange.submit_order(uid, order, db)
-    
+
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
-    
+
     return {
         "success": True,
         "order_id": result.order_id,
@@ -140,106 +188,97 @@ async def place_order(
         "fill_price": str(result.fill_price) if result.fill_price is not None else None,
         "fee": str(result.fee) if result.fee is not None else None,
         "position": result.position,
-        "message": result.message
+        "message": result.message,
     }
 
 
 @router.post("/close-position")
 async def close_position(
-    request: ClosePositionRequest, user_id: Optional[str] = Query(None)
+    request: ClosePositionRequest,
+    token_data: TokenData = Depends(require_auth),
+    user_id: Optional[str] = Query(None),
 ):
     """Close an open position (fully or partially)"""
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
-        raise HTTPException(
-            status_code=400, detail="Invalid user_id format"
-        ) from err
-    
+    uid = _resolve_user_id(token_data, user_id)
+
     exchange = get_paper_exchange()
     result = await exchange.close_position(uid, request.symbol, request.qty)
-    
+
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
-    
+
     return {
         "success": True,
         "message": result.message,
-        "position": result.position
+        "position": result.position,
     }
 
 
 @router.get("/portfolio")
-async def get_portfolio(user_id: Optional[str] = Query(None)):
+async def get_portfolio(
+    token_data: TokenData = Depends(require_auth),
+    user_id: Optional[str] = Query(None),
+):
     """Get current portfolio state"""
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
-        raise HTTPException(
-            status_code=400, detail="Invalid user_id format"
-        ) from err
-    
+    uid = _resolve_user_id(token_data, user_id)
+
     manager = get_portfolio_manager()
     portfolio = await manager.get_or_create_portfolio(uid)
-    
+
     return portfolio.to_dict()
 
 
 @router.get("/position/{symbol}")
-async def get_position(symbol: str, user_id: Optional[str] = Query(None)):
+async def get_position(
+    symbol: str,
+    token_data: TokenData = Depends(require_auth),
+    user_id: Optional[str] = Query(None),
+):
     """Get position for a specific symbol"""
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
-        raise HTTPException(
-            status_code=400, detail="Invalid user_id format"
-        ) from err
-    
+    uid = _resolve_user_id(token_data, user_id)
+
     if symbol not in SUPPORTED_SYMBOLS:
         raise HTTPException(
             status_code=400,
-            detail=f"Symbol not supported. Supported: {SUPPORTED_SYMBOLS}"
+            detail=f"Symbol not supported. Supported: {SUPPORTED_SYMBOLS}",
         )
-    
+
     manager = get_portfolio_manager()
     portfolio = manager.get_portfolio(uid)
-    
+
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
-    
+
     position = portfolio.get_position(symbol)
     if not position:
         raise HTTPException(status_code=404, detail="Position not found")
-    
+
     return position.to_dict()
 
 
 @router.put("/leverage")
 async def update_leverage(
-    request: UpdateLeverageRequest, user_id: Optional[str] = Query(None)
+    request: UpdateLeverageRequest,
+    token_data: TokenData = Depends(require_auth),
+    user_id: Optional[str] = Query(None),
 ):
     """Update leverage for future trades"""
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
-        raise HTTPException(
-            status_code=400, detail="Invalid user_id format"
-        ) from err
-    
+    uid = _resolve_user_id(token_data, user_id)
+
     if request.leverage not in SUPPORTED_LEVERAGE:
         raise HTTPException(
             status_code=400,
-            detail=f"Leverage must be one of: {SUPPORTED_LEVERAGE}"
+            detail=f"Leverage must be one of: {SUPPORTED_LEVERAGE}",
         )
-    
+
     manager = get_portfolio_manager()
     portfolio = await manager.get_or_create_portfolio(uid)
     portfolio.update_leverage(request.leverage)
-    
+
     return {
         "success": True,
         "leverage": request.leverage,
-        "message": f"Leverage updated to {request.leverage}x"
+        "message": f"Leverage updated to {request.leverage}x",
     }
 
 
@@ -248,7 +287,7 @@ async def get_supported_symbols():
     """Get list of supported trading symbols"""
     return {
         "symbols": SUPPORTED_SYMBOLS,
-        "leverage_options": SUPPORTED_LEVERAGE
+        "leverage_options": SUPPORTED_LEVERAGE,
     }
 
 
@@ -260,57 +299,55 @@ async def get_trading_stats():
 
 
 @router.post("/reset")
-async def reset_portfolio(user_id: Optional[str] = Query(None)):
-    """Reset portfolio to initial state (for testing)"""
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
-        raise HTTPException(
-            status_code=400, detail="Invalid user_id format"
-        ) from err
-    
+async def reset_portfolio(
+    token_data: TokenData = Depends(require_auth),
+    user_id: Optional[str] = Query(None),
+):
+    """Reset portfolio to initial state"""
+    uid = _resolve_user_id(token_data, user_id)
+
     manager = get_portfolio_manager()
-    
+
     # Remove old portfolio
     await manager.remove_portfolio(uid)
-    
+
     # Create fresh portfolio
     portfolio = await manager.get_or_create_portfolio(
         uid,
         starting_balance=DEFAULT_STARTING_BALANCE,
-        leverage=DEFAULT_LEVERAGE
+        leverage=DEFAULT_LEVERAGE,
     )
-    
+
     return {
         "success": True,
         "message": "Portfolio reset successfully",
-        "portfolio": portfolio.to_dict()
+        "portfolio": portfolio.to_dict(),
     }
 
 
 @router.get("/orders/history")
 async def get_order_history(
+    token_data: TokenData = Depends(require_auth),
     user_id: Optional[str] = Query(None),
     limit: int = 50,
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_session),
 ):
     """Get order history"""
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail="Invalid user_id") from err
+    uid = _resolve_user_id(token_data, user_id)
 
-    # Get portfolio from DB
     result = await db.execute(select(Portfolio).where(Portfolio.user_id == uid))
     db_portfolio = result.scalars().first()
-    
+
     if not db_portfolio:
         return []
-        
-    query = select(Order).where(
-        Order.portfolio_id == db_portfolio.id
-    ).order_by(desc(Order.created_at)).limit(limit)
-    
+
+    query = (
+        select(Order)
+        .where(Order.portfolio_id == db_portfolio.id)
+        .order_by(desc(Order.created_at))
+        .limit(limit)
+    )
+
     result = await db.execute(query)
     orders = result.scalars().all()
     return orders
@@ -318,34 +355,59 @@ async def get_order_history(
 
 @router.get("/orders/open")
 async def get_open_orders(
+    token_data: TokenData = Depends(require_auth),
     user_id: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_session),
 ):
     """Get open orders"""
-    try:
-        uid = uuid.UUID(user_id) if user_id else get_demo_user_id()
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail="Invalid user_id") from err
+    uid = _resolve_user_id(token_data, user_id)
 
-    # Get portfolio from DB
     result = await db.execute(select(Portfolio).where(Portfolio.user_id == uid))
     db_portfolio = result.scalars().first()
-    
+
     if not db_portfolio:
         return []
-        
-    query = select(Order).where(
-        Order.portfolio_id == db_portfolio.id,
-        # Assuming OrderStatus enum is available and matches DB
-        # If OrderStatus is not imported or different, this might fail.
-        # I imported OrderStatus earlier.
-    ).order_by(desc(Order.created_at))
-    
-    # Filter for OPEN status in python if needed, or use where clause if enum works
-    # Let's use the where clause but be careful about the enum
+
     from app.core.config import OrderStatus
-    query = query.where(Order.status == OrderStatus.OPEN)
-    
+
+    query = (
+        select(Order)
+        .where(
+            Order.portfolio_id == db_portfolio.id,
+            Order.status == OrderStatus.OPEN,
+        )
+        .order_by(desc(Order.created_at))
+    )
+
     result = await db.execute(query)
     orders = result.scalars().all()
     return orders
+
+
+@router.delete("/orders/{order_id}")
+async def cancel_order(
+    order_id: str,
+    token_data: TokenData = Depends(require_auth),
+    user_id: Optional[str] = Query(None),
+):
+    """Cancel a pending (OPEN) order"""
+    uid = _resolve_user_id(token_data, user_id)
+
+    try:
+        oid = uuid.UUID(order_id)
+    except ValueError as err:
+        raise HTTPException(
+            status_code=400, detail="Invalid order_id format"
+        ) from err
+
+    exchange = get_paper_exchange()
+    result = await exchange.cancel_order(uid, oid)
+
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+
+    return {
+        "success": True,
+        "order_id": result.order_id,
+        "message": result.message,
+    }

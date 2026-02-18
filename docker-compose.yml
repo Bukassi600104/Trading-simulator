@@ -1,60 +1,153 @@
-# Terminal Zero - Docker Compose Configuration
-# Run with: docker-compose up
+# ===============================================================================
+# TERMINAL ZERO - Docker Compose Configuration (Local Development)
+# ===============================================================================
+# Usage:
+#   cp .env.example .env            # Create environment file
+#   docker-compose up               # Start all services
+#   docker-compose up -d            # Start in background
+#   docker-compose logs -f api      # Follow API logs
+#   docker-compose down -v          # Stop and remove volumes
+# ===============================================================================
 
 services:
-  # FastAPI Backend
-  api:
-    build: ./backend
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
     ports:
-      - "8000:8000"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-terminal_zero}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-terminal_zero}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redis for Pub/Sub, Caching, and Order Queue
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-terminal_zero}
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/terminal_zero
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - DEBUG=${DEBUG:-true}
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
     depends_on:
-      - redis
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
     dns:
       - 8.8.8.8
       - 8.8.4.4
 
+  # ---------------------------------------------------------------------------
   # Next.js Frontend
+  # ---------------------------------------------------------------------------
   web:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:${API_PORT:-8000}
+      - NEXT_PUBLIC_WS_URL=ws://localhost:${API_PORT:-8000}
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      - /app/.next
     command: npm run dev
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
 
-  # Redis for Pub/Sub
-  redis:
-    image: redis:alpine
+  # ---------------------------------------------------------------------------
+  # pgAdmin - Database Management UI
+  # ---------------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-
-  # PostgreSQL Database
-  db:
-    image: postgres:15-alpine
-    ports:
-      - "5432:5432"
+      - "${PGADMIN_PORT:-5050}:80"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=terminal_zero
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@terminalzero.io}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgadmin_data:/var/lib/pgadmin
+    profiles:
+      - tools
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Redis Commander - Cache Inspection UI
+  # ---------------------------------------------------------------------------
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - tools
+    restart: unless-stopped
 
 volumes:
-  redis_data:
   postgres_data:
+  redis_data:
+  pgadmin_data:

@@ -25,8 +25,11 @@ from app.api.auth import router as auth_router
 from app.api.journal import router as journal_router
 from app.api.payments import router as payments_router
 from app.api.admin import router as admin_router
+from app.api.challenges import router as challenges_router
+from app.api.competitions import router as competitions_router
+from app.api.leaderboard import router as leaderboard_router
 from app.core.database import init_db
-from app.core.middleware import LatencyGuardMiddleware
+from app.core.middleware import InputSanitizationMiddleware, LatencyGuardMiddleware
 from app.jobs.leaderboard import update_leaderboard
 from jesse_custom.engine import get_portfolio_manager
 from jesse_custom.exchange import get_paper_exchange
@@ -109,46 +112,65 @@ async def scheduler_loop():
 async def price_update_forwarder():
     """
     Forward price updates from market stream to portfolio manager.
-    
-    This runs as a background task and updates all user portfolios
-    when new price data comes in.
+
+    Dynamically subscribes to all supported symbols (BTC, ETH, SOL, BNB,
+    XRP, DOGE) and forwards each tick to the paper exchange and portfolio
+    manager.
     """
     global market_stream
-    
+
+    from app.core.config import BYBIT_SYMBOLS, SUPPORTED_SYMBOLS
+
     portfolio_manager = get_portfolio_manager()
     paper_exchange = get_paper_exchange()
-    
-    # Create queues for each symbol we want to track
-    btc_queue = asyncio.Queue(maxsize=100)
-    eth_queue = asyncio.Queue(maxsize=100)
-    
+
+    # Build symbol mapping: Bybit name -> our internal name
+    symbol_pairs = list(zip(BYBIT_SYMBOLS, SUPPORTED_SYMBOLS))
+
+    # Create a queue for each symbol
+    queues: dict[str, asyncio.Queue] = {
+        bybit_sym: asyncio.Queue(maxsize=100)
+        for bybit_sym, _ in symbol_pairs
+    }
+
     # Wait for market stream to be ready
     await asyncio.sleep(2)
-    
-    # Subscribe to price updates
+
+    # Subscribe to price updates for all symbols
     if market_stream:
-        await market_stream.subscribe("BTCUSDT", btc_queue)
-        await market_stream.subscribe("ETHUSDT", eth_queue)
-    
-    logger.info("📡 Price forwarder connected to market stream")
-    
-    async def process_symbol_queue(queue: asyncio.Queue, symbol: str):
-        """Process price updates for a specific symbol"""
+        for bybit_sym, _ in symbol_pairs:
+            await market_stream.subscribe(bybit_sym, queues[bybit_sym])
+
+    logger.info(
+        f"Price forwarder connected for {len(symbol_pairs)} symbols"
+    )
+
+    async def process_symbol_queue(
+        queue: asyncio.Queue, internal_symbol: str
+    ):
+        """Process price updates for a specific symbol."""
         while True:
             try:
                 data = await queue.get()
                 if "close" in data:
                     price = Decimal(str(data["close"]))
-                    # Trigger any pending orders first (STOP/LIMIT), then update valuations/broadcasts
-                    await paper_exchange.on_price_update(symbol, price)
-                    await portfolio_manager.on_price_update(symbol, price)
+                    await paper_exchange.on_price_update(
+                        internal_symbol, price
+                    )
+                    await portfolio_manager.on_price_update(
+                        internal_symbol, price
+                    )
             except Exception as e:
-                logger.error(f"Error processing price for {symbol}: {e}")
-    
-    # Run processors for each symbol
+                logger.error(
+                    f"Error processing price for {internal_symbol}: {e}"
+                )
+
+    # Run processors for all symbols concurrently
     await asyncio.gather(
-        process_symbol_queue(btc_queue, "BTC-USDT"),
-        process_symbol_queue(eth_queue, "ETH-USDT")
+        *(
+            process_symbol_queue(queues[bybit_sym], internal_sym)
+            for bybit_sym, internal_sym in symbol_pairs
+        )
     )
 
 
@@ -166,25 +188,35 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Middleware
+# Middleware (order matters: outermost runs first)
+app.add_middleware(InputSanitizationMiddleware)
 app.add_middleware(LatencyGuardMiddleware)
 
 # CORS configuration for frontend
+# In production, set CORS_ALLOW_ORIGINS to your actual domain(s).
+# Example: CORS_ALLOW_ORIGINS=https://terminalzero.com,https://app.terminalzero.com
 cors_origins_env = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3000")
 cors_allow_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
-cors_origin_regex = os.getenv(
-    "CORS_ALLOW_ORIGIN_REGEX",
-    r"https://.*\\.amplifyapp\\.com"
-)
+cors_origin_regex = os.getenv("CORS_ALLOW_ORIGIN_REGEX", "")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_allow_origins,
-    allow_origin_regex=cors_origin_regex,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_kwargs: dict = {
+    "allow_origins": cors_allow_origins,
+    "allow_credentials": True,
+    "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    "allow_headers": [
+        "Authorization",
+        "Content-Type",
+        "X-Client-Timestamp",
+        "X-Requested-With",
+        "Accept",
+    ],
+    "expose_headers": ["Retry-After"],
+    "max_age": 600,
+}
+if cors_origin_regex:
+    cors_kwargs["allow_origin_regex"] = cors_origin_regex
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 # Include trading routes
 app.include_router(trading_router)
@@ -192,23 +224,66 @@ app.include_router(auth_router)
 app.include_router(journal_router)
 app.include_router(payments_router)
 app.include_router(admin_router)
+app.include_router(challenges_router)
+app.include_router(competitions_router)
+app.include_router(leaderboard_router)
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    portfolio_manager = get_portfolio_manager()
-    stats = portfolio_manager.get_stats()
-    
-    return {
-        "status": "healthy",
-        "service": "terminal-zero-api",
-        "version": "0.2.0",
-        "trading_engine": {
-            "active_portfolios": stats["active_portfolios"],
-            "current_prices": stats["current_prices"]
-        }
+    """Health check endpoint for load balancers and monitoring."""
+    checks = {
+        "database": "unknown",
+        "redis": "unknown",
     }
+
+    # Check database connectivity
+    try:
+        from app.core.database import get_session
+        from sqlalchemy import text
+        async for session in get_session():
+            await session.execute(text("SELECT 1"))
+            checks["database"] = "connected"
+            break
+    except Exception:
+        checks["database"] = "disconnected"
+
+    # Check Redis connectivity
+    try:
+        import redis as redis_lib
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+        r = redis_lib.from_url(redis_url, socket_connect_timeout=2)
+        r.ping()
+        checks["redis"] = "connected"
+    except Exception:
+        checks["redis"] = "disconnected"
+
+    # Get trading engine stats
+    try:
+        portfolio_manager = get_portfolio_manager()
+        stats = portfolio_manager.get_stats()
+        trading_engine = {
+            "active_portfolios": stats["active_portfolios"],
+            "current_prices": stats["current_prices"],
+        }
+    except Exception:
+        trading_engine = {"active_portfolios": 0, "current_prices": 0}
+
+    all_healthy = all(v == "connected" for v in checks.values())
+    status_code = 200 if all_healthy else 503
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if all_healthy else "degraded",
+            "service": "terminal-zero-api",
+            "version": "0.2.0",
+            "environment": os.environ.get("ENVIRONMENT", "development"),
+            "checks": checks,
+            "trading_engine": trading_engine,
+        },
+    )
 
 
 @app.get("/api/market/klines/{symbol}")

@@ -1,6 +1,6 @@
 "use client";
 
-import Navbar from "@/components/layout/Navbar";
+import AppShell from "@/components/layout/AppShell";
 import { useAuthStore } from "@/stores/authStore";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -84,9 +84,7 @@ export default function ChallengePage() {
 
   if (!canAccessChallenge) {
     return (
-      <div className="challenge-page">
-        <Navbar />
-
+      <AppShell>
         <main className="challenge-content">
           <div className="challenge-header">
             <div className="header-left">
@@ -122,13 +120,12 @@ export default function ChallengePage() {
             </div>
           </div>
         </main>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="challenge-page">
-      <Navbar />
+    <AppShell>
       <main className="challenge-content">
       {/* Challenge Header */}
         <div className="challenge-header">
@@ -1094,6 +1091,6 @@ export default function ChallengePage() {
           }
         }
       `}</style>
-    </div>
+    </AppShell>
   );
 }

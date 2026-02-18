@@ -48,9 +48,8 @@ async def update_leaderboard():
             ]
             
             # Save to Redis
-            r = redis.from_url(REDIS_URL)
-            await r.set("leaderboard:24h", json.dumps(leaderboard))
-            await r.close()
+            async with redis.from_url(REDIS_URL) as r:
+                await r.set("leaderboard:24h", json.dumps(leaderboard))
             
             logger.info(f"✅ Leaderboard updated with {len(leaderboard)} users")
             

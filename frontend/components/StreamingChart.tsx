@@ -50,6 +50,8 @@ export default function StreamingChart({ symbol = "BTCUSDT", onPriceUpdate }: St
     const wsRef = useRef<WebSocket | null>(null);
     const mountedRef = useRef<boolean>(true);
     const lastCandleTimeRef = useRef<number>(0);
+    const reconnectAttemptRef = useRef<number>(0);
+    const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [connected, setConnected] = useState(false);
     const [lastPrice, setLastPrice] = useState<number | null>(null);
@@ -227,6 +229,10 @@ export default function StreamingChart({ symbol = "BTCUSDT", onPriceUpdate }: St
         return () => {
             mountedRef.current = false;
             window.removeEventListener("resize", handleResize);
+            if (reconnectTimerRef.current) {
+                clearTimeout(reconnectTimerRef.current);
+                reconnectTimerRef.current = null;
+            }
             if (wsRef.current) {
                 wsRef.current.close();
                 wsRef.current = null;
@@ -258,6 +264,7 @@ export default function StreamingChart({ symbol = "BTCUSDT", onPriceUpdate }: St
         ws.onopen = () => {
             setConnected(true);
             setError(null);
+            reconnectAttemptRef.current = 0;
         };
 
         ws.onmessage = (event) => {
@@ -296,11 +303,14 @@ export default function StreamingChart({ symbol = "BTCUSDT", onPriceUpdate }: St
 
         ws.onclose = () => {
             setConnected(false);
-            setTimeout(() => {
-                if (mountedRef.current && wsRef.current?.readyState === WebSocket.CLOSED) {
+            const attempt = reconnectAttemptRef.current;
+            const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+            reconnectAttemptRef.current = attempt + 1;
+            reconnectTimerRef.current = setTimeout(() => {
+                if (mountedRef.current) {
                     connectWebSocket(interval);
                 }
-            }, 3000);
+            }, delay);
         };
     };
 

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_session
 from app.core.security import require_auth, TokenData
 from app.models.user import User, UserTier
 from app.models.payment import Payment
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 async def get_current_admin(
     token_data: TokenData = Depends(require_auth),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_session)
 ) -> User:
     """Dependency to get current admin user"""
     stmt = select(User).where(User.id == uuid.UUID(token_data.user_id))
@@ -77,13 +77,15 @@ async def list_users(
     limit: int = 100,
     search: Optional[str] = None,
     admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_session)
 ):
     """List all users with pagination and search"""
     stmt = select(User).offset(skip).limit(limit)
     
     if search:
-        stmt = stmt.where(User.email.ilike(f"%{search}%"))
+        # Escape LIKE wildcards in user input to prevent pattern abuse
+        safe_search = search.replace("%", r"\%").replace("_", r"\_")
+        stmt = stmt.where(User.email.ilike(f"%{safe_search}%"))
         
     result = await db.execute(stmt)
     users = result.scalars().all()
@@ -105,7 +107,7 @@ async def list_users(
 async def ban_user(
     user_id: uuid.UUID,
     admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_session)
 ):
     """Ban a user"""
     stmt = select(User).where(User.id == user_id)
@@ -129,7 +131,7 @@ async def ban_user(
 async def unban_user(
     user_id: uuid.UUID,
     admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_session)
 ):
     """Unban a user"""
     stmt = select(User).where(User.id == user_id)
@@ -149,7 +151,7 @@ async def unban_user(
 @router.get("/system/status", response_model=SystemStatus)
 async def get_system_status(
     admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_session)
 ):
     """Get system health status"""
     # DB Check

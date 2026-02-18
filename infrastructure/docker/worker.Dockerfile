@@ -1,17 +1,20 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-# TERMINAL ZERO - WORKER (JESSE ENGINE) DOCKERFILE
-# ═══════════════════════════════════════════════════════════════════════════════
-# Handles order processing and trade execution
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
+# TERMINAL ZERO - WORKER PRODUCTION DOCKERFILE
+# ===============================================================================
+# Handles order processing and trade execution via Redis queue
+# Build context: project root (needs backend/ and worker/)
+# ===============================================================================
 
-FROM python:3.11-slim as builder
+# ---------------------------------------------------------------------------
+# STAGE 1: Builder
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m venv /opt/venv
@@ -21,15 +24,15 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Production Stage
-# ─────────────────────────────────────────────────────────────────────────────
-FROM python:3.11-slim as production
+# ---------------------------------------------------------------------------
+# STAGE 2: Production
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim AS production
 
 LABEL maintainer="Terminal Zero <admin@terminalzero.io>"
 LABEL description="Terminal Zero Worker - Order Processing Engine"
 
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
 
@@ -40,7 +43,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy backend code (worker needs access to models and jesse_custom)
 COPY --chown=appuser:appuser backend/ .
 COPY --chown=appuser:appuser worker/ ./worker/
 
@@ -50,5 +52,4 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     ENVIRONMENT=production
 
-# Worker doesn't expose a port - it consumes from Redis queue
 CMD ["python", "-m", "worker.processor"]
