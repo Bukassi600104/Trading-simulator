@@ -1,4 +1,7 @@
 import QueryProvider from "@/components/providers/QueryProvider";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import CookieBanner from "@/components/legal/CookieBanner";
 import { ToastProvider } from "@/components/shared/Toast";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
@@ -18,9 +21,21 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Terminal Zero | Ground Zero for Professional Trading",
-  description: "High-frequency crypto trading simulator with real-time market data. Risk-free practice for prop firm candidates and algorithmic traders.",
-  keywords: ["trading simulator", "crypto trading", "prop firm", "paper trading", "trading practice"],
+  title: "Terminal Zero | Crypto Trading Simulator",
+  description: "Practice crypto trading with real market data. Risk-free paper trading — no real money needed.",
+  keywords: ["crypto paper trading", "trading simulator", "practice trading bitcoin", "crypto trading practice"],
+  openGraph: {
+    title: "Terminal Zero | Crypto Trading Simulator",
+    description: "Practice crypto trading with real market data. No real money — just skill building.",
+    url: "https://terminalzero.com",
+    siteName: "Terminal Zero",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terminal Zero | Crypto Trading Simulator",
+    description: "Practice crypto trading with real market data. Risk-free — no real money involved.",
+  },
 };
 
 export default function RootLayout({
@@ -31,6 +46,23 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#070714" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{__html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "Terminal Zero",
+            "applicationCategory": "FinanceApplication",
+            "description": "Crypto paper trading simulator with real market data. Practice trading without risking real money.",
+            "url": "https://terminalzero.com",
+            "offers": [{"@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free Plan"}],
+            "operatingSystem": "Web Browser"
+          })}}
+        />
         {/* Prevent MetaMask and other wallet extensions from auto-connecting */}
         <Script id="disable-wallet-connect" strategy="beforeInteractive">
           {`
@@ -55,6 +87,9 @@ export default function RootLayout({
         <QueryProvider>
           <ToastProvider>
             {children}
+            <PWAInstallPrompt />
+            <ServiceWorkerRegistrar />
+            <CookieBanner />
           </ToastProvider>
         </QueryProvider>
       </body>

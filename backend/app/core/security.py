@@ -321,3 +321,14 @@ def get_user_id_from_token(token_data: Optional[TokenData]) -> uuid.UUID:
         except ValueError:
             pass
     return uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+
+def get_effective_tier(user) -> str:
+    """Returns 'PRO' if user is in active trial period, else user.tier.value"""
+    trial_end = getattr(user, 'trial_end_date', None)
+    if trial_end:
+        if trial_end.tzinfo is None:
+            trial_end = trial_end.replace(tzinfo=timezone.utc)
+        if trial_end > datetime.now(timezone.utc):
+            return "PRO"
+    return user.tier.value if hasattr(user.tier, 'value') else str(user.tier)

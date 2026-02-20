@@ -107,9 +107,15 @@ async function syncUserWithBackend(accessToken: string): Promise<User> {
 export interface User {
   id: string;
   email: string;
-  tier: 'free' | 'premium' | 'pro' | 'FREE' | 'PRO' | 'PROP_CHALLENGE';
+  tier: 'free' | 'premium' | 'pro' | 'FREE' | 'PRO' | 'PROP_CHALLENGE' | 'ELITE';
   is_active: boolean;
   created_at: string;
+  // Trial fields (returned by /api/auth/me)
+  trial_end_date?: string | null;
+  is_trial_active?: boolean;
+  effective_tier?: string;
+  referral_code?: string | null;
+  xp_total?: number;
 }
 
 export interface Token {

@@ -17,7 +17,9 @@ Endpoints:
 - POST /api/auth/reset-password - Reset password with token
 """
 
+import asyncio
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -39,12 +41,14 @@ from app.core.security import (
     blacklist_token,
     clear_failed_logins,
     create_token_pair,
+    get_effective_tier,
     get_lockout_status,
     hash_password,
     record_failed_login,
     require_auth,
     verify_password,
 )
+from app.services.email_service import send_welcome_email
 from app.models.user import User, UserTier
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -214,6 +218,12 @@ async def _register_supabase(
     await session.commit()
     await session.refresh(user)
 
+    # Set 14-day Pro trial
+    user.trial_end_date = datetime.now(timezone.utc) + timedelta(days=14)
+    await session.commit()
+    # Fire-and-forget welcome email
+    asyncio.create_task(send_welcome_email(user.email, user.email.split('@')[0]))
+
     token_pair = _build_token_pair(auth_response.session)
     return AuthResponse(token=token_pair, user=_user_response(user))
 
@@ -233,6 +243,12 @@ async def _register_local(
     session.add(user)
     await session.commit()
     await session.refresh(user)
+
+    # Set 14-day Pro trial
+    user.trial_end_date = datetime.now(timezone.utc) + timedelta(days=14)
+    await session.commit()
+    # Fire-and-forget welcome email
+    asyncio.create_task(send_welcome_email(user.email, user.email.split('@')[0]))
 
     token_pair = create_token_pair(str(user_id), request.email)
     return AuthResponse(token=token_pair, user=_user_response(user))
@@ -463,14 +479,20 @@ async def sync_user(
         await session.commit()
         await session.refresh(user)
 
+        # Set 14-day Pro trial for new Supabase signups
+        user.trial_end_date = datetime.now(timezone.utc) + timedelta(days=14)
+        await session.commit()
+        # Fire-and-forget welcome email
+        asyncio.create_task(send_welcome_email(user.email, user.email.split('@')[0]))
+
     return _user_response(user)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_me(
     token_data: TokenData = Depends(require_auth),
     session: AsyncSession = Depends(get_session),
-) -> UserResponse:
+):
     """Get current authenticated user's profile."""
     result = await session.execute(
         select(User).where(User.id == uuid.UUID(token_data.user_id))
@@ -483,7 +505,13 @@ async def get_me(
             detail="User not found",
         )
 
-    return _user_response(user)
+    resp = _user_response(user)
+    return {
+        **resp.model_dump(),
+        "trial_end_date": user.trial_end_date.isoformat() if user.trial_end_date else None,
+        "is_trial_active": bool(user.trial_end_date and user.trial_end_date > datetime.now(timezone.utc)),
+        "effective_tier": get_effective_tier(user),
+    }
 
 
 @router.post("/demo", response_model=AuthResponse)
@@ -591,3 +619,104 @@ async def reset_password(
     user.hashed_password = hash_password(request.new_password)
     await session.commit()
     return {"message": "Password updated successfully"}
+
+
+# ---------------------------------------------------------------------------
+# GDPR endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/export-data")
+async def export_user_data(
+    token_data: TokenData = Depends(require_auth),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Export all user data as JSON (GDPR data portability right).
+    """
+    from app.models.portfolio import Portfolio
+
+    user_id = token_data.user_id
+
+    # Fetch user
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Fetch portfolios
+    port_result = await session.execute(
+        select(Portfolio).where(Portfolio.user_id == user_id)
+    )
+    portfolios = port_result.scalars().all()
+
+    # Fetch journal entries
+    export_data = {
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "tier": user.tier.value if hasattr(user.tier, "value") else str(user.tier),
+            "created_at": user.created_at.isoformat(),
+            "xp_total": user.xp_total,
+        },
+        "portfolios": [
+            {
+                "id": str(p.id),
+                "balance": str(p.balance),
+                "created_at": p.created_at.isoformat() if hasattr(p, "created_at") else None,
+            }
+            for p in portfolios
+        ],
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Try to include journal entries
+    try:
+        from app.models.journal import JournalEntry
+        journal_result = await session.execute(
+            select(JournalEntry).where(JournalEntry.user_id == user_id)
+        )
+        entries = journal_result.scalars().all()
+        export_data["journal_entries"] = [
+            {
+                "id": str(e.id),
+                "symbol": e.symbol,
+                "notes": e.notes,
+                "created_at": e.created_at.isoformat(),
+            }
+            for e in entries
+        ]
+    except Exception:
+        export_data["journal_entries"] = []
+
+    return export_data
+
+
+@router.delete("/delete-account")
+async def delete_account(
+    token_data: TokenData = Depends(require_auth),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Soft-delete a user account (GDPR right to erasure).
+
+    Anonymizes the email address and deactivates the account
+    rather than hard-deleting to preserve referential integrity.
+    """
+    user_id = token_data.user_id
+
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Anonymize PII
+    anon_email = f"deleted_{user_id}@deleted.invalid"
+    user.email = anon_email
+    user.hashed_password = "DELETED"
+    user.is_active = False
+    user.referral_code = None
+
+    await session.commit()
+    logger.info(f"Account deleted (anonymized): {user_id}")
+    return {"message": "Account successfully deleted"}

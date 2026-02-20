@@ -78,12 +78,74 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: "/coaching",
+    label: "AI Coach",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3l1.912 5.813L20 10.5l-4.588 3.687L17.175 20 12 16.5 6.825 20l1.763-5.813L4 10.5l6.088-1.687L12 3z" />
+      </svg>
+    ),
+  },
+  {
     href: "/replay",
     label: "Replay",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="5,3 19,12 5,21" />
         <line x1="2" y1="3" x2="2" y2="21" />
+      </svg>
+    ),
+  },
+  {
+    href: "/backtesting",
+    label: "Backtesting",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+  },
+  {
+    href: "/defi",
+    label: "DeFi Sim",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8v8M8 12h8" />
+      </svg>
+    ),
+  },
+  {
+    href: "/copy-trading",
+    label: "Copy Trading",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+        <rect x="8" y="2" width="8" height="4" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/strategy-builder",
+    label: "Strategies",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5" />
+        <path d="M2 12l10 5 10-5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/african-market",
+    label: "NGN Market",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M2 12h20" />
+        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
       </svg>
     ),
   },
@@ -151,6 +213,19 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
         ))}
       </div>
+
+      {/* Legal links */}
+      {!collapsed && (
+        <div className="border-t border-dark-700/40 px-4 py-3">
+          <p className="text-[10px] font-medium text-dark-600 uppercase tracking-wider mb-2">Legal</p>
+          <div className="flex flex-col gap-1">
+            <Link href="/pricing" className="text-[11px] text-dark-500 hover:text-dark-300 transition-colors">Pricing</Link>
+            <Link href="/legal/privacy" className="text-[11px] text-dark-500 hover:text-dark-300 transition-colors">Privacy Policy</Link>
+            <Link href="/legal/terms" className="text-[11px] text-dark-500 hover:text-dark-300 transition-colors">Terms of Service</Link>
+            <Link href="/legal/disclaimer" className="text-[11px] text-dark-500 hover:text-dark-300 transition-colors">Disclaimer</Link>
+          </div>
+        </div>
+      )}
 
       {/* Collapse toggle */}
       <button

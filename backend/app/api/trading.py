@@ -11,6 +11,7 @@ All endpoints require authentication via JWT bearer token.
 Per-user rate limiting is applied to order placement.
 """
 
+import asyncio
 import uuid
 from decimal import Decimal
 from typing import List, Optional
@@ -181,6 +182,36 @@ async def place_order(
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
 
+    # Fire-and-forget gamification hooks
+    try:
+        from app.services.gamification import (
+            award_trade_xp,
+            check_and_award_achievements,
+            process_referral_reward,
+            update_streak,
+        )
+
+        uid_str = str(uid)
+        asyncio.create_task(award_trade_xp(uid_str))
+        asyncio.create_task(update_streak(uid_str))
+
+        # Build achievement context from portfolio state
+        manager = get_portfolio_manager()
+        portfolio = manager.get_portfolio(uid)
+        trade_value = float(request.qty * (result.fill_price or Decimal("0")))
+        total_pnl = float(portfolio.total_realized_pnl + portfolio.total_unrealized_pnl) if portfolio else 0
+        context = {
+            "trade_count": 1,  # at least 1 since we just placed one
+            "current_streak": 0,
+            "total_pnl": total_pnl,
+            "largest_trade_value": trade_value,
+            "open_positions_count": portfolio.open_position_count if portfolio else 0,
+        }
+        asyncio.create_task(check_and_award_achievements(uid_str, context))
+        asyncio.create_task(process_referral_reward(uid_str))
+    except Exception:
+        pass  # gamification must never block trading
+
     return {
         "success": True,
         "order_id": result.order_id,
@@ -206,6 +237,68 @@ async def close_position(
 
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
+
+    # Fire-and-forget AI coaching insight on position close
+    try:
+        from app.core.database import async_session_maker
+        from sqlalchemy import text as sa_text
+
+        async def _post_close_ai_coaching(user_id, symbol):
+            """Generate AI coaching after a position is closed."""
+            try:
+                from app.services.ai_coaching import generate_trade_insight, store_trade_insight
+
+                async with async_session_maker() as session:
+                    # Get user tier
+                    u = await session.execute(
+                        sa_text("SELECT tier FROM users WHERE id = :uid"),
+                        {"uid": str(user_id)},
+                    )
+                    user_row = u.mappings().first()
+                    if not user_row or user_row["tier"] not in ("PRO", "ELITE", "PROP_CHALLENGE"):
+                        return
+
+                    # Get latest journal entry for this symbol
+                    j = await session.execute(
+                        sa_text(
+                            "SELECT j.id, j.symbol, j.side, j.entry_price, j.exit_price, "
+                            "j.pnl, j.pnl_percent, j.qty, j.entry_time, j.exit_time "
+                            "FROM journal_entries j JOIN portfolios p ON j.portfolio_id = p.id "
+                            "WHERE p.user_id = :uid AND j.symbol = :sym "
+                            "ORDER BY j.exit_time DESC LIMIT 1"
+                        ),
+                        {"uid": str(user_id), "sym": symbol},
+                    )
+                    trade = j.mappings().first()
+                    if not trade:
+                        return
+
+                    duration_hours = 0.0
+                    if trade["entry_time"] and trade["exit_time"]:
+                        delta = trade["exit_time"] - trade["entry_time"]
+                        duration_hours = delta.total_seconds() / 3600
+
+                    trade_data = {
+                        "symbol": trade["symbol"],
+                        "side": trade["side"],
+                        "entry_price": float(trade["entry_price"]),
+                        "exit_price": float(trade["exit_price"]),
+                        "pnl": float(trade["pnl"]),
+                        "pnl_percent": float(trade["pnl_percent"]),
+                        "duration_hours": duration_hours,
+                        "qty": float(trade["qty"]),
+                    }
+
+                    insight = await generate_trade_insight(trade_data, user_row["tier"])
+                    if insight:
+                        await store_trade_insight(str(trade["id"]), insight)
+            except Exception as e:
+                from loguru import logger
+                logger.warning(f"AI coaching post-close failed: {e}")
+
+        asyncio.create_task(_post_close_ai_coaching(uid, request.symbol))
+    except Exception:
+        pass  # AI coaching must never block trading
 
     return {
         "success": True,

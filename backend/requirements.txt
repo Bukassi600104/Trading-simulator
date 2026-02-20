@@ -47,6 +47,16 @@ loguru>=0.7.2               # Structured logging
 loguru>=0.7.2               # Enhanced logging
 python-dotenv>=1.0.0        # Environment variable loading
 
+# --- Payments ---
+stripe>=8.0.0               # Stripe billing integration
+
+# --- AI Coaching ---
+anthropic>=0.25.0           # Claude API for trade coaching insights
+resend>=2.0.0               # Transactional email service
+
 # --- Middleware & Monitoring ---
 sentry-sdk>=1.45.0          # Error tracking
 slowapi>=0.1.9              # Rate limiting
+
+# --- Image Generation ---
+Pillow>=10.0.0              # Server-side performance card PNG generation

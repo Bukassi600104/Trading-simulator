@@ -1,6 +1,7 @@
 "use client";
 
 import AppShell from "@/components/layout/AppShell";
+import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useQuery } from "@tanstack/react-query";
@@ -71,6 +72,20 @@ function generateMockCandles(count: number) {
 /*  Attempt dynamic import of real chart / order panel                         */
 /* -------------------------------------------------------------------------- */
 
+let PriceAlertModal: React.ComponentType<{
+  symbol: string;
+  currentPrice: number;
+  isOpen: boolean;
+  onClose: () => void;
+}> | null = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  PriceAlertModal = require("@/components/PriceAlertModal").default;
+} catch {
+  PriceAlertModal = null;
+}
+
 let StreamingChart: React.ComponentType<{
   symbol?: string;
   onPriceUpdate?: (p: number) => void;
@@ -116,6 +131,7 @@ function TradePageInner() {
   >("positions");
   const [isLoaded, setIsLoaded] = useState(false);
   const [mobileOrderOpen, setMobileOrderOpen] = useState(false);
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
 
   /* ---- order panel state (used only by fallback) ---- */
   const [orderType, setOrderType] = useState<string>("Market");
@@ -125,6 +141,26 @@ function TradePageInner() {
   const [leverage, setLeverage] = useState(10);
 
   const { checkAuth } = useAuthStore();
+  const realtimeGate = useFeatureGate("realtime_data");
+  const [delayedBannerDismissed, setDelayedBannerDismissed] = useState(false);
+
+  /* ---- delayed prices for free users ---- */
+  const { data: delayedPriceData } = useQuery<{
+    prices: Record<string, { price: number; change_24h: number }>;
+    delayed_by_minutes: number;
+    cached_at: string | null;
+  }>({
+    queryKey: ["delayed-prices"],
+    queryFn: async () => {
+      const res = await apiFetch("/api/market/delayed-prices");
+      if (!res.ok) throw new Error("Failed to fetch delayed prices");
+      return res.json();
+    },
+    enabled: isLoaded && !realtimeGate.hasAccess,
+    refetchInterval: 30_000,
+  });
+
+  const delayedPrice = delayedPriceData?.prices?.[symbol];
 
   const mockCandles = useMemo(() => generateMockCandles(60), []);
 
@@ -267,6 +303,39 @@ function TradePageInner() {
                 </span>
               )}
             </div>
+
+            {/* Delayed price indicator for free users */}
+            {!realtimeGate.hasAccess && delayedPrice && (
+              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-400 shrink-0">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="font-mono text-xs text-amber-200">
+                  ${delayedPrice.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+                {delayedPrice.change_24h != null && (
+                  <span className={`font-mono text-[10px] font-semibold ${delayedPrice.change_24h >= 0 ? "text-profit-400" : "text-loss-400"}`}>
+                    {delayedPrice.change_24h >= 0 ? "+" : ""}{delayedPrice.change_24h.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Set Alert button */}
+            {PriceAlertModal && currentPrice && (
+              <button
+                onClick={() => setAlertModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-t0-surface border border-white/[0.06] text-dark-400 hover:text-primary-400 hover:border-primary-500/30 transition-colors text-xs font-semibold"
+                title="Set Price Alert"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                Alert
+              </button>
+            )}
           </div>
 
           {/* Centre: timeframe tabs */}
@@ -306,6 +375,36 @@ function TradePageInner() {
           <div className="flex flex-col flex-1 min-w-0">
             {/* Chart area */}
             <div className="relative flex-1 min-h-[360px] bg-t0-void bg-grid-dots bg-grid">
+              {/* Delayed data banner for free users */}
+              {!realtimeGate.hasAccess && !delayedBannerDismissed && (
+                <div className="absolute top-2 left-2 right-2 z-20 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-amber-500/15 border border-amber-500/25 backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-400 shrink-0">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span className="text-xs font-medium text-amber-200">
+                      Prices delayed 15 minutes.{" "}
+                      <button
+                        onClick={() => window.location.href = "/pricing"}
+                        className="text-amber-400 font-semibold hover:underline"
+                      >
+                        Upgrade to Pro for real-time data &rarr;
+                      </button>
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setDelayedBannerDismissed(true)}
+                    className="w-5 h-5 flex items-center justify-center rounded text-dark-500 hover:text-dark-300 transition-colors shrink-0"
+                    aria-label="Dismiss"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               {StreamingChart ? (
                 <StreamingChart
                   symbol={wsSymbol}
@@ -701,6 +800,24 @@ function TradePageInner() {
               </svg>
             </button>
           )}
+        </div>
+
+        {/* Price Alert Modal */}
+        {PriceAlertModal && currentPrice && (
+          <PriceAlertModal
+            symbol={symbol}
+            currentPrice={currentPrice}
+            isOpen={alertModalOpen}
+            onClose={() => setAlertModalOpen(false)}
+          />
+        )}
+
+        {/* Disclaimer bar */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#070714]/90 backdrop-blur-sm border-t border-[#1a1a2e] px-4 py-1.5 text-center">
+          <p className="text-[10px] text-gray-600">
+            Simulated environment — No real money or cryptocurrency involved — Not financial advice —{' '}
+            <a href="/legal/disclaimer" className="text-gray-500 hover:text-gray-400 underline">Disclaimer</a>
+          </p>
         </div>
       </div>
     </AppShell>

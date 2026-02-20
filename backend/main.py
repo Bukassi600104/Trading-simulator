@@ -28,9 +28,25 @@ from app.api.admin import router as admin_router
 from app.api.challenges import router as challenges_router
 from app.api.competitions import router as competitions_router
 from app.api.leaderboard import router as leaderboard_router
+from app.api.portfolio import router as portfolio_router
+from app.api.stripe_billing import router as stripe_router
+from app.api.gamification import router as gamification_router
+from app.api.coaching import router as coaching_router
+from app.api.market_data import router as market_data_router
+from app.api.alerts import router as alerts_router
+from app.api.backtesting import router as backtesting_router
+from app.api.share import router as share_router
+from app.api.paystack_billing import router as paystack_router
+from app.api.defi import router as defi_router
+from app.api.copy_trading import router as copy_trading_router
+from app.api.strategy_builder import router as strategy_builder_router
+from app.api.african_market import router as african_market_router
+from app.api.account import router as account_router
 from app.core.database import init_db
 from app.core.middleware import InputSanitizationMiddleware, LatencyGuardMiddleware
 from app.jobs.leaderboard import update_leaderboard
+from app.jobs.streaks import reset_daily_streaks
+from app.jobs.trial_reminders import process_trial_emails
 from jesse_custom.engine import get_portfolio_manager
 from jesse_custom.exchange import get_paper_exchange
 from services.market_stream import MarketStreamService
@@ -97,6 +113,12 @@ async def lifespan(app: FastAPI):
     # Start scheduled jobs (non-fatal if Redis is unavailable)
     asyncio.create_task(scheduler_loop())
 
+    # Delayed price refresh every 15 minutes
+    asyncio.create_task(delayed_price_refresh_loop())
+
+    # Price alert checker every 60 seconds
+    asyncio.create_task(price_alert_check_loop())
+
     yield
 
     # Cleanup
@@ -105,14 +127,73 @@ async def lifespan(app: FastAPI):
         await market_stream.stop()
 
 
+async def delayed_price_refresh_loop():
+    """Refresh delayed (CoinGecko) prices every 15 minutes."""
+    from app.services.delayed_prices import refresh_delayed_prices
+
+    while True:
+        try:
+            await refresh_delayed_prices()
+        except Exception as e:
+            logger.error(f"Delayed price refresh failed: {e}")
+        await asyncio.sleep(900)  # 15 minutes
+
+
+async def price_alert_check_loop():
+    """Check price alerts against current prices every 60 seconds."""
+    from app.jobs.price_alerts import check_price_alerts
+
+    while True:
+        try:
+            await check_price_alerts()
+        except Exception as e:
+            logger.error(f"Price alert check loop error: {e}")
+        await asyncio.sleep(60)
+
+
 async def scheduler_loop():
     """Run scheduled jobs"""
+    from datetime import datetime, timezone
+
+    _streak_reset_done_today = None
+    _trial_emails_done_today = None
+
     while True:
         try:
             await update_leaderboard()
         except Exception as e:
-            logger.error(f"Scheduler error: {e}")
-        
+            logger.error(f"Scheduler error (leaderboard): {e}")
+
+        # Daily streak reset at ~00:05 UTC
+        try:
+            now = datetime.now(timezone.utc)
+            today = now.date()
+            if now.hour == 0 and now.minute >= 5 and _streak_reset_done_today != today:
+                await reset_daily_streaks()
+                _streak_reset_done_today = today
+        except Exception as e:
+            logger.error(f"Scheduler error (streaks): {e}")
+
+        # Daily trial reminder emails at ~00:10 UTC
+        try:
+            now = datetime.now(timezone.utc)
+            today = now.date()
+            if now.hour == 0 and now.minute >= 10 and _trial_emails_done_today != today:
+                await process_trial_emails()
+                _trial_emails_done_today = today
+                logger.info("Trial reminder emails processed")
+        except Exception as e:
+            logger.error(f"Scheduler error (trial reminders): {e}")
+
+        # Weekly digest on Monday at ~08:00 UTC
+        try:
+            from app.jobs.weekly_digest import process_weekly_digests
+            now = datetime.now(timezone.utc)
+            if now.weekday() == 0 and now.hour == 8:
+                await process_weekly_digests()
+        except Exception as e:
+            logger.error(f"Scheduler error (weekly digest): {e}")
+
         # Run every hour
         await asyncio.sleep(3600)
 
@@ -235,6 +316,20 @@ app.include_router(admin_router)
 app.include_router(challenges_router)
 app.include_router(competitions_router)
 app.include_router(leaderboard_router)
+app.include_router(portfolio_router)
+app.include_router(stripe_router)
+app.include_router(gamification_router)
+app.include_router(coaching_router)
+app.include_router(market_data_router)
+app.include_router(alerts_router)
+app.include_router(backtesting_router)
+app.include_router(share_router)
+app.include_router(paystack_router)
+app.include_router(defi_router)
+app.include_router(copy_trading_router)
+app.include_router(strategy_builder_router)
+app.include_router(african_market_router)
+app.include_router(account_router)
 
 
 @app.get("/health")

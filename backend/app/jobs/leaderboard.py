@@ -1,57 +1,32 @@
-import asyncio
 import json
-from datetime import datetime, timedelta
-from decimal import Decimal
-
-from loguru import logger
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import redis.asyncio as redis
+from loguru import logger
+
 from app.core.config import REDIS_URL
-from app.core.database import async_session_maker
-from app.models.journal import JournalEntry
-from app.models.portfolio import Portfolio
-from app.models.user import User
+
 
 async def update_leaderboard():
     """
-    Calculate 24h PnL for all users and update Redis leaderboard.
+    Calculate 24h and weekly leaderboards and cache in Redis.
+    Uses the shared _build_leaderboard helper from the API module.
     """
-    logger.info("🏆 Updating leaderboard...")
-    
+    logger.info("Updating leaderboards...")
+
     try:
-        async with async_session_maker() as db:
-            # Calculate 24h PnL
-            last_24h = datetime.utcnow() - timedelta(hours=24)
-            
-            # Query: Sum PnL by User for entries in last 24h
-            query = (
-                select(
-                    User.email,
-                    func.sum(JournalEntry.pnl).label("total_pnl")
-                )
-                .join(Portfolio, Portfolio.id == JournalEntry.portfolio_id)
-                .join(User, User.id == Portfolio.user_id)
-                .where(JournalEntry.exit_time >= last_24h)
-                .group_by(User.id)
-                .order_by(func.sum(JournalEntry.pnl).desc())
-                .limit(100)
-            )
-            
-            result = await db.execute(query)
-            rows = result.all()
-            
-            leaderboard = [
-                {"user": email.split("@")[0], "pnl": float(total_pnl)}
-                for email, total_pnl in rows
-            ]
-            
-            # Save to Redis
-            async with redis.from_url(REDIS_URL) as r:
-                await r.set("leaderboard:24h", json.dumps(leaderboard))
-            
-            logger.info(f"✅ Leaderboard updated with {len(leaderboard)} users")
-            
+        from app.api.leaderboard import _build_leaderboard
+
+        leaderboard_24h = await _build_leaderboard(hours=24)
+        leaderboard_weekly = await _build_leaderboard(hours=168)
+
+        async with redis.from_url(REDIS_URL, decode_responses=True) as r:
+            await r.set("leaderboard:24h", json.dumps(leaderboard_24h, default=str))
+            await r.set("leaderboard:weekly", json.dumps(leaderboard_weekly, default=str))
+
+        logger.info(
+            f"Leaderboards updated: 24h={len(leaderboard_24h)} users, "
+            f"weekly={len(leaderboard_weekly)} users"
+        )
+
     except Exception as e:
         logger.error(f"Failed to update leaderboard: {e}")
