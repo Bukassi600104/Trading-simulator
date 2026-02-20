@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from loguru import logger
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,6 +93,7 @@ async def get_supabase_admin():
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
+    username: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -115,6 +117,8 @@ class ResetPasswordRequest(BaseModel):
 class UserResponse(BaseModel):
     id: str
     email: str
+    username: Optional[str] = None
+    onboarding_stage: int = 0
     tier: str
     is_active: bool
     created_at: str
@@ -136,6 +140,8 @@ def _user_response(user: User) -> UserResponse:
     return UserResponse(
         id=str(user.id),
         email=user.email,
+        username=user.username,
+        onboarding_stage=user.onboarding_stage,
         tier=user.tier.value,
         is_active=user.is_active,
         created_at=user.created_at.isoformat(),
@@ -210,6 +216,7 @@ async def _register_supabase(
     user = User(
         id=supabase_user_id,
         email=request.email,
+        username=request.username,
         hashed_password="managed-by-supabase",
         tier=UserTier.FREE,
         is_active=True,
@@ -221,8 +228,9 @@ async def _register_supabase(
     # Set 14-day Pro trial
     user.trial_end_date = datetime.now(timezone.utc) + timedelta(days=14)
     await session.commit()
+    display_name = request.username or user.email.split('@')[0]
     # Fire-and-forget welcome email
-    asyncio.create_task(send_welcome_email(user.email, user.email.split('@')[0]))
+    asyncio.create_task(send_welcome_email(user.email, display_name))
 
     token_pair = _build_token_pair(auth_response.session)
     return AuthResponse(token=token_pair, user=_user_response(user))
@@ -236,6 +244,7 @@ async def _register_local(
     user = User(
         id=user_id,
         email=request.email,
+        username=request.username,
         hashed_password=hash_password(request.password),
         tier=UserTier.FREE,
         is_active=True,
@@ -247,8 +256,9 @@ async def _register_local(
     # Set 14-day Pro trial
     user.trial_end_date = datetime.now(timezone.utc) + timedelta(days=14)
     await session.commit()
+    display_name = request.username or user.email.split('@')[0]
     # Fire-and-forget welcome email
-    asyncio.create_task(send_welcome_email(user.email, user.email.split('@')[0]))
+    asyncio.create_task(send_welcome_email(user.email, display_name))
 
     token_pair = create_token_pair(str(user_id), request.email)
     return AuthResponse(token=token_pair, user=_user_response(user))
@@ -512,6 +522,59 @@ async def get_me(
         "is_trial_active": bool(user.trial_end_date and user.trial_end_date > datetime.now(timezone.utc)),
         "effective_tier": get_effective_tier(user),
     }
+
+
+# ---------------------------------------------------------------------------
+# Onboarding sync endpoints
+# ---------------------------------------------------------------------------
+
+class OnboardingUpdateRequest(BaseModel):
+    stage: int  # 0 = Registered, 1 = Segmentation done, 2 = Tutorial done
+    username: Optional[str] = None
+
+
+@router.patch("/me/onboarding")
+async def update_onboarding(
+    request: OnboardingUpdateRequest,
+    token_data: TokenData = Depends(require_auth),
+    session: AsyncSession = Depends(get_session),
+):
+    """Sync onboarding stage and optionally set a Trader Tag (username)."""
+    result = await session.execute(
+        select(User).where(User.id == uuid.UUID(token_data.user_id))
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if request.stage in (0, 1, 2):
+        user.onboarding_stage = request.stage
+
+    if request.username:
+        # Normalise and check uniqueness
+        clean = request.username.strip()[:50]
+        existing = await session.execute(
+            select(User).where(User.username == clean, User.id != user.id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Username already taken")
+        user.username = clean
+
+    await session.commit()
+    return {"onboarding_stage": user.onboarding_stage, "username": user.username}
+
+
+@router.get("/check-username/{username}")
+async def check_username(
+    username: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """Check if a Trader Tag (username) is available."""
+    result = await session.execute(
+        select(User).where(User.username == username.strip())
+    )
+    taken = result.scalar_one_or_none() is not None
+    return {"available": not taken, "username": username.strip()}
 
 
 @router.post("/demo", response_model=AuthResponse)

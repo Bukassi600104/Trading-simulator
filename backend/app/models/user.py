@@ -13,6 +13,11 @@ from sqlalchemy.sql import func
 from app.core.config import UserTier
 from app.core.database import Base
 
+# Onboarding stages
+# 0 = Just Registered
+# 1 = Segmentation Complete (chose experience level)
+# 2 = Tutorial Complete
+
 if TYPE_CHECKING:
     from .portfolio import Portfolio
 
@@ -27,6 +32,12 @@ class User(Base):
         default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    username: Mapped[Optional[str]] = mapped_column(
+        String(50), unique=True, index=True, nullable=True
+    )
+    onboarding_stage: Mapped[int] = mapped_column(
+        Integer, server_default="0", nullable=False
+    )
     hashed_password: Mapped[str] = mapped_column(String(255))
     tier: Mapped[UserTier] = mapped_column(
         SQLEnum(UserTier),

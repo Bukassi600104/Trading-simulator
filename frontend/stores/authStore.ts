@@ -134,7 +134,7 @@ export interface AuthState {
 
   // Actions
   login: (email: string, password: string) => Promise<boolean>;
-  register: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string, username?: string) => Promise<boolean>;
   requestPasswordReset: (email: string) => Promise<{ message: string; reset_token?: string | null } | null>;
   resetPassword: (token: string, newPassword: string) => Promise<boolean>;
   logout: () => void;
@@ -185,14 +185,14 @@ function createFallbackActions(set: any, get: any) {
       }
     },
 
-    register: async (email: string, password: string): Promise<boolean> => {
+    register: async (email: string, password: string, username?: string): Promise<boolean> => {
       set({ isLoading: true, error: null });
       try {
         await ensureApiReachable();
         const response = await fetchWithTimeout(`${API_BASE}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, username }),
         });
         if (!response.ok) {
           const errorData = await safeJson(response);
@@ -321,7 +321,7 @@ function createSupabaseActions(set: any, get: any) {
       }
     },
 
-    register: async (email: string, password: string): Promise<boolean> => {
+    register: async (email: string, password: string, username?: string): Promise<boolean> => {
       set({ isLoading: true, error: null });
       try {
         const { data, error } = await sb.auth.signUp({ email, password });
@@ -333,7 +333,17 @@ function createSupabaseActions(set: any, get: any) {
         }
 
         const accessToken = data.session.access_token;
-        const user = await syncUserWithBackend(accessToken);
+        // Sync user to backend and pass username if provided
+        let user = await syncUserWithBackend(accessToken);
+        if (username) {
+          try {
+            await fetchWithTimeout(`${API_BASE}/api/auth/me/onboarding`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+              body: JSON.stringify({ stage: 0, username }),
+            });
+          } catch { /* non-critical */ }
+        }
         set({ user, token: accessToken, isAuthenticated: true, isLoading: false, error: null });
         return true;
       } catch (err) {

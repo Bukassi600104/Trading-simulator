@@ -6,9 +6,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useOnboardingStore } from '../stores/onboardingStore';
+import { generateTraderTag, useOnboardingStore } from '../stores/onboardingStore';
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -21,39 +21,71 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [traderTag, setTraderTag] = useState('');
+  const [tagAvailable, setTagAvailable] = useState<boolean | null>(null);
+  const [tagChecking, setTagChecking] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   
   const { register, isLoading, error, clearError } = useAuthStore();
-  const { resetOnboarding } = useOnboardingStore();
+  const { resetOnboarding, setTradertag } = useOnboardingStore();
+
+  // Auto-generate a tag on mount
+  useEffect(() => {
+    setTraderTag(generateTraderTag());
+  }, []);
+
+  const checkTagAvailability = async (tag: string) => {
+    if (!tag || tag.length < 3) { setTagAvailable(null); return; }
+    setTagChecking(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/auth/check-username/${encodeURIComponent(tag)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTagAvailable(data.available);
+      }
+    } catch {
+      setTagAvailable(null);
+    } finally {
+      setTagChecking(false);
+    }
+  };
+
+  const handleTagChange = (val: string) => {
+    const clean = val.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 30);
+    setTraderTag(clean);
+    setTagAvailable(null);
+  };
+
+  const refreshTag = () => {
+    const newTag = generateTraderTag();
+    setTraderTag(newTag);
+    setTagAvailable(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
     setLocalError(null);
     
-    // Validate passwords match
     if (password !== confirmPassword) {
       setLocalError('Passwords do not match');
       return;
     }
-    
-    // Validate password strength
     if (password.length < 8) {
       setLocalError('Password must be at least 8 characters');
       return;
     }
+    if (tagAvailable === false) {
+      setLocalError('That Trader Tag is already taken. Pick another!');
+      return;
+    }
     
-    const success = await register(email, password);
+    const success = await register(email, password, traderTag || undefined);
     if (success) {
-      // Reset onboarding for new user
       resetOnboarding();
-      
-      // Close modal
-      if (onSuccess) {
-        onSuccess();
-      }
-      
-      // Redirect to onboarding
+      if (traderTag) setTradertag(traderTag);
+      if (onSuccess) onSuccess();
       router.push('/onboarding');
     }
   };
@@ -91,6 +123,40 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
       )}
       
       <form onSubmit={handleSubmit}>
+        {/* Trader Tag field */}
+        <div className="field">
+          <label htmlFor="trader-tag">
+            Trader Tag
+            <span style={{ color: 'var(--text-ghost)', fontWeight: 400 }}> (your public display name)</span>
+          </label>
+          <div className="input-wrapper">
+            <svg className="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+            <input
+              type="text"
+              id="trader-tag"
+              value={traderTag}
+              onChange={(e) => handleTagChange(e.target.value)}
+              onBlur={() => checkTagAvailability(traderTag)}
+              placeholder="e.g. BullWhale99"
+              maxLength={30}
+              disabled={isLoading}
+              style={{ paddingRight: '80px' }}
+            />
+            {/* Availability indicator */}
+            {tagChecking && <span className="tag-status checking">checking…</span>}
+            {!tagChecking && tagAvailable === true && <span className="tag-status available">✓ Free</span>}
+            {!tagChecking && tagAvailable === false && <span className="tag-status taken">✗ Taken</span>}
+            {/* Refresh button */}
+            <button type="button" className="tag-refresh" onClick={refreshTag} title="Generate a new tag">
+              ↻
+            </button>
+          </div>
+          <p className="field-hint">Letters, numbers and underscores only. Can be changed later.</p>
+        </div>
+
         <div className="field">
           <label htmlFor="reg-email">Email Address</label>
           <div className="input-wrapper">
@@ -222,6 +288,43 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
           width: 100%;
         }
         
+        /* Trader Tag helpers */
+        .field-hint {
+          margin: 6px 0 0;
+          font-size: 11px;
+          color: var(--text-ghost);
+        }
+
+        .tag-status {
+          position: absolute;
+          right: 44px;
+          top: 50%;
+          transform: translateY(-50%);
+          font-size: 11px;
+          font-weight: 700;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .tag-status.checking { color: var(--text-ghost); }
+        .tag-status.available { color: var(--profit-400); }
+        .tag-status.taken { color: var(--loss-400); }
+
+        .tag-refresh {
+          position: absolute;
+          right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: var(--text-ghost);
+          cursor: pointer;
+          font-size: 18px;
+          line-height: 1;
+          padding: 0;
+          transition: color var(--transition-fast);
+        }
+        .tag-refresh:hover { color: var(--mint-400); }
+
         h2 {
           margin: 0 0 6px 0;
           font-size: 22px;

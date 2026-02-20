@@ -47,6 +47,10 @@ from app.core.middleware import InputSanitizationMiddleware, LatencyGuardMiddlew
 from app.jobs.leaderboard import update_leaderboard
 from app.jobs.streaks import reset_daily_streaks
 from app.jobs.trial_reminders import process_trial_emails
+from app.jobs.onboarding_retention import (
+    run_one_hour_retention_check,
+    run_twenty_four_hour_retention_check,
+)
 from jesse_custom.engine import get_portfolio_manager
 from jesse_custom.exchange import get_paper_exchange
 from services.market_stream import MarketStreamService
@@ -119,6 +123,9 @@ async def lifespan(app: FastAPI):
     # Price alert checker every 60 seconds
     asyncio.create_task(price_alert_check_loop())
 
+    # Day 1 retention checks every 5 minutes
+    asyncio.create_task(retention_check_loop())
+
     yield
 
     # Cleanup
@@ -149,6 +156,21 @@ async def price_alert_check_loop():
         except Exception as e:
             logger.error(f"Price alert check loop error: {e}")
         await asyncio.sleep(60)
+
+
+async def retention_check_loop():
+    """Run Day 1 retention email checks every 5 minutes."""
+    from app.core.database import get_session
+
+    while True:
+        try:
+            async for db in get_session():
+                await run_one_hour_retention_check(db)
+                await run_twenty_four_hour_retention_check(db)
+                break
+        except Exception as e:
+            logger.error(f"Retention check loop error: {e}")
+        await asyncio.sleep(300)  # every 5 minutes
 
 
 async def scheduler_loop():
