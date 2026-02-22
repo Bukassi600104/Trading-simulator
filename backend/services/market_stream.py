@@ -175,24 +175,48 @@ class MarketStreamService:
         jitter = base * self.RECONNECT_JITTER * random.random()
         return base + jitter
 
+    # CoinGecko coin IDs for supported symbols
+    _COINGECKO_IDS = {
+        "BTCUSDT": "bitcoin", "ETHUSDT": "ethereum", "SOLUSDT": "solana",
+        "BNBUSDT": "binancecoin", "XRPUSDT": "ripple", "DOGEUSDT": "dogecoin",
+    }
+
     async def _fetch_ath_atl(self, symbol: str):
-        """Fetch All-Time High and All-Time Low (Bybit → Binance fallback)."""
-        # Try Bybit first
-        klines = await self._fetch_klines_bybit(symbol, "W", 200)
-        # Fall back to Binance
-        if not klines:
-            klines = await self._fetch_klines_binance(symbol, "W", 200)
-        if klines:
-            highs = [k["high"] for k in klines]
-            lows = [k["low"] for k in klines]
-            self.ath_atl_data[symbol] = {
-                "ath": max(highs),
-                "atl": min(lows),
+        """Fetch All-Time High and All-Time Low via CoinGecko (most reliable)."""
+        coin_id = self._COINGECKO_IDS.get(symbol.upper())
+        if not coin_id:
+            return
+        try:
+            url = "https://api.coingecko.com/api/v3/coins/markets"
+            params = {"vs_currency": "usd", "ids": coin_id}
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data and isinstance(data, list) and len(data) > 0:
+                        coin = data[0]
+                        ath = coin.get("ath")
+                        atl = coin.get("atl")
+                        if ath and atl:
+                            self.ath_atl_data[symbol.upper()] = {
+                                "ath": ath,
+                                "atl": atl,
+                                "updated": datetime.now().isoformat(),
+                            }
+                            logger.info(f"{symbol} ATH: ${ath:,.2f}, ATL: ${atl:,.2f}")
+                            return
+        except Exception as e:
+            logger.warning(f"CoinGecko ATH/ATL failed for {symbol}: {e}")
+
+        # Fallback: derive from accumulated weekly WS candles (grows over time)
+        hist = self._candle_history.get(f"{symbol.upper()}:W", [])
+        if hist:
+            highs = [k["high"] for k in hist]
+            lows = [k["low"] for k in hist]
+            self.ath_atl_data[symbol.upper()] = {
+                "ath": max(highs), "atl": min(lows),
                 "updated": datetime.now().isoformat(),
             }
-            logger.info(
-                f"{symbol} ATH: ${max(highs):,.2f}, ATL: ${min(lows):,.2f}"
-            )
         else:
             logger.warning(f"Could not fetch ATH/ATL for {symbol}")
 
@@ -412,9 +436,11 @@ class MarketStreamService:
             self._last_message_time = datetime.utcnow()
             logger.info("Connected to Bybit WebSocket")
 
-            # Subscribe to all supported symbols with 1-minute interval
+            # Subscribe to all supported symbols across key intervals
+            startup_intervals = ["1", "5", "15", "60", "240", "D"]
             for sym in BYBIT_SYMBOLS:
-                await self._subscribe_to_bybit(sym, "1")
+                for iv in startup_intervals:
+                    await self._subscribe_to_bybit(sym, iv)
 
             # Re-subscribe any active client subscriptions
             for sub_key in list(self.active_bybit_subs):
