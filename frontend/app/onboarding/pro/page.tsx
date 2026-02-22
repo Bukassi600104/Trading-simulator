@@ -13,8 +13,9 @@ interface WizardStep {
 
 const wizardSteps: WizardStep[] = [
   { id: 1, title: "Asset Class", subtitle: "What do you trade?" },
-  { id: 2, title: "Layout Preference", subtitle: "Customize your workspace" },
-  { id: 3, title: "Prop Mode Setup", subtitle: "Challenge configuration" },
+  { id: 2, title: "Indicators", subtitle: "Pre-load your analysis tools" },
+  { id: 3, title: "Layout Preference", subtitle: "Customize your workspace" },
+  { id: 4, title: "Prop Mode Setup", subtitle: "Challenge configuration" },
 ];
 
 const assetClasses = [
@@ -45,6 +46,7 @@ const layouts = [
   },
 ];
 
+
 const propModeOptions = [
   { label: "Drawdown Limit", options: ["5%", "10%", "15%"] },
   { label: "Profit Target", options: ["6%", "8%", "10%", "12%"] },
@@ -58,6 +60,7 @@ export default function ProOnboarding() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
+  const [selectedIndicators] = useState<string[]>(["rsi", "macd", "ema"]);
   const [selectedLayout, setSelectedLayout] = useState<string | null>(null);
   const [propModeEnabled, setPropModeEnabled] = useState(false);
   const [propSettings, setPropSettings] = useState({
@@ -95,17 +98,19 @@ export default function ProOnboarding() {
 
   const canProceed = () => {
     if (currentStep === 1) return selectedAsset !== null;
-    if (currentStep === 2) return selectedLayout !== null;
+    if (currentStep === 2) return selectedIndicators.length > 0;
+    if (currentStep === 3) return selectedLayout !== null;
     return true;
   };
 
   const handleNext = () => {
-    if (currentStep < 3) {
+    if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
       // Complete onboarding
       updateSettings({
         assetClass: selectedAsset || undefined,
+        indicators: selectedIndicators,
         layout: selectedLayout || undefined,
         propModeEnabled,
         propSettings: propModeEnabled ? propSettings : undefined,

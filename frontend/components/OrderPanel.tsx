@@ -19,7 +19,7 @@ interface OrderData {
   leverage: number;
 }
 
-const LEVERAGE_OPTIONS = [2, 5, 10, 15, 20, 25];
+const LEVERAGE_OPTIONS = [2, 5, 10, 25, 50, 100];
 
 export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: OrderPanelProps) {
   const [marketType, setMarketType] = useState<"SPOT" | "FUTURES">("FUTURES");
@@ -136,6 +136,21 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
 
   const estimatedValue = currentPrice && qty ? (parseFloat(qty) * currentPrice).toFixed(2) : "0.00";
   const margin = currentPrice && qty ? ((parseFloat(qty) * currentPrice) / leverage).toFixed(2) : "0.00";
+
+  // Isolated margin liquidation price formula
+  const liquidationPrice = (() => {
+    if (!currentPrice || !qty || parseFloat(qty) <= 0 || marketType !== "FUTURES") return null;
+    const mmr = 0.005; // 0.5% maintenance margin rate
+    if (side === "BUY") {
+      return (currentPrice * (1 - 1 / leverage + mmr)).toFixed(2);
+    }
+    return (currentPrice * (1 + 1 / leverage - mmr)).toFixed(2);
+  })();
+
+  const nearLiquidation = !!(
+    liquidationPrice && currentPrice &&
+    Math.abs(currentPrice - parseFloat(liquidationPrice)) / currentPrice < 0.05
+  );
 
   return (
     <div className="order-panel">
@@ -380,7 +395,7 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
         </div>
 
         {/* Order Summary */}
-        <div className="order-summary">
+        <div className={`order-summary${nearLiquidation ? ' near-liq' : ''}`}>
           <div className="summary-row">
             <span>Est. Value</span>
             <span className="mono">${estimatedValue}</span>
@@ -389,6 +404,15 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
             <span>Margin Required</span>
             <span className="mono">${margin}</span>
           </div>
+          {liquidationPrice && (
+            <div className={`summary-row${nearLiquidation ? ' liq-warning' : ''}`}>
+              <span>Liq. Price</span>
+              <span className="mono liq-price">${parseFloat(liquidationPrice).toLocaleString()}</span>
+            </div>
+          )}
+          {nearLiquidation && (
+            <div className="liq-alert">⚠️ Price is close to liquidation!</div>
+          )}
         </div>
 
         {/* Messages */}
@@ -788,6 +812,18 @@ export default function OrderPanel({ symbol, currentPrice, onOrderSubmit }: Orde
 
         .summary-row span:first-child {
           color: var(--text-muted);
+        }
+
+        .liq-warning { border-top: 1px solid rgba(239,68,68,0.2); margin-top: 4px; padding-top: 8px; }
+        .liq-price { color: var(--loss-400) !important; }
+        .near-liq { border-color: rgba(239,68,68,0.3); animation: border-flash 1s ease-in-out infinite alternate; }
+        .liq-alert {
+          font-size: 11px; font-weight: 600; color: var(--loss-400);
+          padding: 6px 0 2px; text-align: center;
+        }
+        @keyframes border-flash {
+          from { border-color: var(--border-subtle); }
+          to { border-color: rgba(239,68,68,0.5); }
         }
 
         .mono {
