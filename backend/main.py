@@ -465,7 +465,12 @@ async def get_ath_atl(symbol: str):
         return {"error": "Market stream not initialized"}
     
     data = market_stream.get_ath_atl(symbol.upper())
-    
+
+    # Lazy fetch if not yet populated (e.g. REST was down at startup)
+    if data.get("ath") is None:
+        await market_stream._fetch_ath_atl(symbol.upper())
+        data = market_stream.get_ath_atl(symbol.upper())
+
     return {
         "symbol": symbol.upper(),
         "ath": data.get("ath"),
