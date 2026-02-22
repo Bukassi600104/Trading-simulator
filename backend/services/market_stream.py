@@ -68,6 +68,10 @@ class MarketStreamService:
         "W": "W",
     }
 
+    BINANCE_REST_URL = "https://api.binance.com"
+    # Max confirmed candles to keep in memory per symbol:interval
+    CANDLE_HISTORY_SIZE = 500
+
     def __init__(self):
         self.running = False
         self.ws = None
@@ -85,6 +89,8 @@ class MarketStreamService:
         self._tick_buffer: Dict[str, Deque[dict]] = {
             s: deque(maxlen=self.BUFFER_SIZE) for s in BYBIT_SYMBOLS
         }
+        # Accumulated confirmed candle history per "symbol:interval"
+        self._candle_history: Dict[str, list] = {}
         # Connection health
         self._last_message_time: Optional[datetime] = None
         self._connected = False
@@ -170,35 +176,25 @@ class MarketStreamService:
         return base + jitter
 
     async def _fetch_ath_atl(self, symbol: str):
-        """Fetch All-Time High and All-Time Low from Bybit REST API."""
-        try:
-            async with httpx.AsyncClient() as client:
-                url = f"{self.BYBIT_REST_URL}/v5/market/kline"
-                params = {
-                    "category": "linear",
-                    "symbol": symbol,
-                    "interval": "W",
-                    "limit": 200,
-                }
-                response = await client.get(url, params=params)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("retCode") == 0:
-                        klines = data.get("result", {}).get("list", [])
-                        if klines:
-                            highs = [float(k[2]) for k in klines]
-                            lows = [float(k[3]) for k in klines]
-                            self.ath_atl_data[symbol] = {
-                                "ath": max(highs),
-                                "atl": min(lows),
-                                "updated": datetime.now().isoformat(),
-                            }
-                            logger.info(
-                                f"{symbol} ATH: ${max(highs):,.2f}, "
-                                f"ATL: ${min(lows):,.2f}"
-                            )
-        except Exception as e:
-            logger.error(f"Error fetching ATH/ATL for {symbol}: {e}")
+        """Fetch All-Time High and All-Time Low (Bybit → Binance fallback)."""
+        # Try Bybit first
+        klines = await self._fetch_klines_bybit(symbol, "W", 200)
+        # Fall back to Binance
+        if not klines:
+            klines = await self._fetch_klines_binance(symbol, "W", 200)
+        if klines:
+            highs = [k["high"] for k in klines]
+            lows = [k["low"] for k in klines]
+            self.ath_atl_data[symbol] = {
+                "ath": max(highs),
+                "atl": min(lows),
+                "updated": datetime.now().isoformat(),
+            }
+            logger.info(
+                f"{symbol} ATH: ${max(highs):,.2f}, ATL: ${min(lows):,.2f}"
+            )
+        else:
+            logger.warning(f"Could not fetch ATH/ATL for {symbol}")
 
     # ------------------------------------------------------------------
     # Historical klines (with Redis cache)
@@ -207,30 +203,48 @@ class MarketStreamService:
     async def get_historical_klines(
         self, symbol: str, interval: str = "1", limit: int = 200
     ):
-        """Fetch historical klines with Redis cache fallback."""
+        """Fetch historical klines: Redis cache → REST API → in-memory history."""
         cache_key = f"klines:{symbol}:{interval}:{limit}"
 
-        # Try cache first
+        # 1. Try Redis cache
         cached = await self._get_cached_klines(cache_key)
         if cached:
             logger.debug(f"Cache hit for {cache_key}")
             return cached
 
-        # Fall back to API
+        # 2. Try REST API (Bybit → Binance fallback)
         candles = await self._fetch_klines_from_api(symbol, interval, limit)
-
-        # Cache the result
         if candles:
             await self._cache_klines(cache_key, candles)
+            return candles
 
-        return candles
+        # 3. Fall back to in-memory accumulated history
+        hist_key = f"{symbol}:{interval}"
+        history = self._candle_history.get(hist_key, [])
+        if history:
+            logger.info(f"Serving {len(history)} in-memory candles for {hist_key}")
+            return history[-limit:]
+
+        return []
 
     async def _fetch_klines_from_api(
         self, symbol: str, interval: str, limit: int
     ) -> list:
-        """Fetch klines directly from Bybit REST API."""
+        """Fetch klines from Bybit REST API, falling back to Binance."""
+        candles = await self._fetch_klines_bybit(symbol, interval, limit)
+        if candles:
+            return candles
+        candles = await self._fetch_klines_binance(symbol, interval, limit)
+        if candles:
+            logger.info(f"Used Binance fallback for {symbol} {interval} klines")
+        return candles
+
+    async def _fetch_klines_bybit(
+        self, symbol: str, interval: str, limit: int
+    ) -> list:
+        """Fetch klines from Bybit REST API."""
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:
                 url = f"{self.BYBIT_REST_URL}/v5/market/kline"
                 params = {
                     "category": "linear",
@@ -257,7 +271,46 @@ class MarketStreamService:
                             )
                         return candles
         except Exception as e:
-            logger.error(f"Error fetching historical klines: {e}")
+            logger.warning(f"Bybit REST unavailable for klines ({symbol}): {e}")
+        return []
+
+    # Bybit interval → Binance interval mapping
+    _BINANCE_INTERVAL_MAP = {
+        "1": "1m", "3": "3m", "5": "5m", "15": "15m", "30": "30m",
+        "60": "1h", "120": "2h", "240": "4h", "D": "1d", "W": "1w",
+    }
+
+    async def _fetch_klines_binance(
+        self, symbol: str, interval: str, limit: int
+    ) -> list:
+        """Fetch klines from Binance public REST API."""
+        binance_interval = self._BINANCE_INTERVAL_MAP.get(interval, "1m")
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                url = f"{self.BINANCE_REST_URL}/api/v3/klines"
+                params = {
+                    "symbol": symbol,
+                    "interval": binance_interval,
+                    "limit": min(limit, 1000),
+                }
+                response = await client.get(url, params=params)
+                if response.status_code == 200:
+                    klines = response.json()
+                    candles = []
+                    for k in klines:
+                        candles.append(
+                            {
+                                "time": int(k[0]) // 1000,
+                                "open": float(k[1]),
+                                "high": float(k[2]),
+                                "low": float(k[3]),
+                                "close": float(k[4]),
+                                "volume": float(k[5]),
+                            }
+                        )
+                    return candles
+        except Exception as e:
+            logger.error(f"Binance REST also failed for klines ({symbol}): {e}")
         return []
 
     async def get_extended_historical_klines(
@@ -276,55 +329,61 @@ class MarketStreamService:
         remaining = limit
         end_time = None
 
-        try:
-            async with httpx.AsyncClient() as client:
-                while remaining > 0:
-                    batch_limit = min(remaining, 200)
-                    url = f"{self.BYBIT_REST_URL}/v5/market/kline"
-                    params = {
-                        "category": "linear",
-                        "symbol": symbol,
-                        "interval": interval,
-                        "limit": batch_limit,
-                    }
-                    if end_time:
-                        params["end"] = end_time
+        # For extended history, try Binance (supports up to 1000 per request)
+        binance_candles = await self._fetch_klines_binance(symbol, interval, limit)
+        if binance_candles:
+            all_candles = binance_candles
+        else:
+            # Fall back to paginated Bybit requests
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    while remaining > 0:
+                        batch_limit = min(remaining, 200)
+                        url = f"{self.BYBIT_REST_URL}/v5/market/kline"
+                        params = {
+                            "category": "linear",
+                            "symbol": symbol,
+                            "interval": interval,
+                            "limit": batch_limit,
+                        }
+                        if end_time:
+                            params["end"] = end_time
 
-                    response = await client.get(url, params=params)
-                    if response.status_code != 200:
-                        break
+                        response = await client.get(url, params=params)
+                        if response.status_code != 200:
+                            break
 
-                    data = response.json()
-                    if data.get("retCode") != 0:
-                        break
+                        data = response.json()
+                        if data.get("retCode") != 0:
+                            break
 
-                    klines = data.get("result", {}).get("list", [])
-                    if not klines:
-                        break
+                        klines = data.get("result", {}).get("list", [])
+                        if not klines:
+                            break
 
-                    batch_candles = []
-                    for k in klines:
-                        batch_candles.append(
-                            {
-                                "time": int(k[0]) // 1000,
-                                "open": float(k[1]),
-                                "high": float(k[2]),
-                                "low": float(k[3]),
-                                "close": float(k[4]),
-                                "volume": float(k[5]),
-                            }
-                        )
+                        batch_candles = []
+                        for k in klines:
+                            batch_candles.append(
+                                {
+                                    "time": int(k[0]) // 1000,
+                                    "open": float(k[1]),
+                                    "high": float(k[2]),
+                                    "low": float(k[3]),
+                                    "close": float(k[4]),
+                                    "volume": float(k[5]),
+                                }
+                            )
 
-                    all_candles = batch_candles + all_candles
-                    oldest_candle_time = int(klines[-1][0])
-                    end_time = oldest_candle_time - 1
-                    remaining -= len(klines)
+                        all_candles = batch_candles + all_candles
+                        oldest_candle_time = int(klines[-1][0])
+                        end_time = oldest_candle_time - 1
+                        remaining -= len(klines)
 
-                    if remaining > 0:
-                        await asyncio.sleep(0.1)
+                        if remaining > 0:
+                            await asyncio.sleep(0.1)
 
-        except Exception as e:
-            logger.error(f"Error fetching extended historical klines: {e}")
+            except Exception as e:
+                logger.error(f"Error fetching extended historical klines: {e}")
 
         all_candles.sort(key=lambda x: x["time"])
 
@@ -477,6 +536,13 @@ class MarketStreamService:
             sub_key = f"{symbol}:{interval}"
             self.current_candles[sub_key] = candle
             self.current_candles[symbol] = candle
+
+            # Accumulate confirmed (closed) candles in history
+            if candle.get("confirm"):
+                hist = self._candle_history.setdefault(sub_key, [])
+                hist.append({k: v for k, v in candle.items() if k not in ("confirm", "symbol", "interval")})
+                if len(hist) > self.CANDLE_HISTORY_SIZE:
+                    self._candle_history[sub_key] = hist[-self.CANDLE_HISTORY_SIZE:]
 
             # Broadcast to subscribers
             await self._broadcast(sub_key, candle)
