@@ -5,6 +5,7 @@ import { useFeatureGate } from "@/hooks/useFeatureGate";
 import { apiFetch } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useQuery } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
@@ -16,9 +17,6 @@ const SUPPORTED_SYMBOLS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-
 
 const TIMEFRAMES = ["1m", "5m", "15m", "1H", "4H", "1D"] as const;
 
-const LEVERAGE_MARKS = [2, 5, 10, 15, 20, 25] as const;
-
-const ORDER_TYPES = ["Market", "Limit", "Stop"] as const;
 
 interface PositionData {
   symbol: string;
@@ -50,66 +48,12 @@ function normalizeSymbol(value: string): string {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Mock candlestick bars (visual placeholder)                                 */
+/*  Dynamic imports (ssr: false — these components use browser-only APIs)      */
 /* -------------------------------------------------------------------------- */
 
-function generateMockCandles(count: number) {
-  const candles: { o: number; h: number; l: number; c: number }[] = [];
-  let price = 67000;
-  for (let i = 0; i < count; i++) {
-    const change = (Math.random() - 0.48) * 800;
-    const open = price;
-    const close = price + change;
-    const high = Math.max(open, close) + Math.random() * 400;
-    const low = Math.min(open, close) - Math.random() * 400;
-    candles.push({ o: open, h: high, l: low, c: close });
-    price = close;
-  }
-  return candles;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Attempt dynamic import of real chart / order panel                         */
-/* -------------------------------------------------------------------------- */
-
-let PriceAlertModal: React.ComponentType<{
-  symbol: string;
-  currentPrice: number;
-  isOpen: boolean;
-  onClose: () => void;
-}> | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  PriceAlertModal = require("@/components/PriceAlertModal").default;
-} catch {
-  PriceAlertModal = null;
-}
-
-let StreamingChart: React.ComponentType<{
-  symbol?: string;
-  onPriceUpdate?: (p: number) => void;
-}> | null = null;
-
-let OrderPanelReal: React.ComponentType<{
-  symbol: string;
-  currentPrice: number | null;
-  onOrderSubmit?: (order: unknown) => void;
-}> | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  StreamingChart = require("@/components/StreamingChart").default;
-} catch {
-  StreamingChart = null;
-}
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  OrderPanelReal = require("@/components/OrderPanel").default;
-} catch {
-  OrderPanelReal = null;
-}
+const PriceAlertModal = dynamic(() => import("@/components/PriceAlertModal"), { ssr: false });
+const StreamingChart = dynamic(() => import("@/components/StreamingChart"), { ssr: false });
+const OrderPanelReal = dynamic(() => import("@/components/OrderPanel"), { ssr: false });
 
 /* ========================================================================== */
 /*  TRADE PAGE (inner)                                                         */
@@ -133,13 +77,6 @@ function TradePageInner() {
   const [mobileOrderOpen, setMobileOrderOpen] = useState(false);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
 
-  /* ---- order panel state (used only by fallback) ---- */
-  const [orderType, setOrderType] = useState<string>("Market");
-  const [side, setSide] = useState<"BUY" | "SELL">("BUY");
-  const [qty, setQty] = useState("");
-  const [limitPrice, setLimitPrice] = useState("");
-  const [leverage, setLeverage] = useState(10);
-
   const { checkAuth } = useAuthStore();
   const realtimeGate = useFeatureGate("realtime_data");
   const [delayedBannerDismissed, setDelayedBannerDismissed] = useState(false);
@@ -161,8 +98,6 @@ function TradePageInner() {
   });
 
   const delayedPrice = delayedPriceData?.prices?.[symbol];
-
-  const mockCandles = useMemo(() => generateMockCandles(60), []);
 
   /* ---- auth guard ---- */
   useEffect(() => {
@@ -227,25 +162,6 @@ function TradePageInner() {
         maximumFractionDigits: 2,
       })
     : "---";
-
-  const margin =
-    currentPrice && qty
-      ? ((parseFloat(qty) * currentPrice) / leverage).toFixed(2)
-      : "0.00";
-  const estValue =
-    currentPrice && qty
-      ? (parseFloat(qty) * currentPrice).toFixed(2)
-      : "0.00";
-
-  /* ---- candlestick SVG helpers ---- */
-  const barWidth = 8;
-  const gap = 3;
-  const chartH = 320;
-  const allPrices = mockCandles.flatMap((c) => [c.h, c.l]);
-  const pMin = Math.min(...allPrices);
-  const pMax = Math.max(...allPrices);
-  const yScale = (p: number) =>
-    chartH - ((p - pMin) / (pMax - pMin)) * (chartH - 20) - 10;
 
   return (
     <AppShell>
@@ -323,7 +239,7 @@ function TradePageInner() {
             )}
 
             {/* Set Alert button */}
-            {PriceAlertModal && currentPrice && (
+            {currentPrice && (
               <button
                 onClick={() => setAlertModalOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-t0-surface border border-white/[0.06] text-dark-400 hover:text-primary-400 hover:border-primary-500/30 transition-colors text-xs font-semibold"
@@ -405,81 +321,10 @@ function TradePageInner() {
                   </button>
                 </div>
               )}
-              {StreamingChart ? (
-                <StreamingChart
-                  symbol={wsSymbol}
-                  onPriceUpdate={(p) => setCurrentPrice(p)}
-                />
-              ) : (
-                /* Placeholder mock chart */
-                <div className="absolute inset-0 flex items-end justify-center overflow-hidden">
-                  <svg
-                    viewBox={`0 0 ${mockCandles.length * (barWidth + gap)} ${chartH}`}
-                    className="w-full h-full"
-                    preserveAspectRatio="none"
-                  >
-                    {/* area fill under close */}
-                    <defs>
-                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(17,212,115,0.12)" />
-                        <stop offset="100%" stopColor="rgba(17,212,115,0)" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d={
-                        `M0,${chartH} ` +
-                        mockCandles
-                          .map(
-                            (c, i) =>
-                              `L${i * (barWidth + gap) + barWidth / 2},${yScale(c.c)}`
-                          )
-                          .join(" ") +
-                        ` L${(mockCandles.length - 1) * (barWidth + gap) + barWidth / 2},${chartH} Z`
-                      }
-                      fill="url(#chartGrad)"
-                    />
-
-                    {/* candle sticks */}
-                    {mockCandles.map((c, i) => {
-                      const x = i * (barWidth + gap);
-                      const bullish = c.c >= c.o;
-                      const color = bullish ? "#11d473" : "#f43f5e";
-                      const bodyTop = yScale(Math.max(c.o, c.c));
-                      const bodyBot = yScale(Math.min(c.o, c.c));
-                      const bodyH = Math.max(bodyBot - bodyTop, 1);
-                      return (
-                        <g key={i}>
-                          {/* wick */}
-                          <line
-                            x1={x + barWidth / 2}
-                            y1={yScale(c.h)}
-                            x2={x + barWidth / 2}
-                            y2={yScale(c.l)}
-                            stroke={color}
-                            strokeWidth={1}
-                            opacity={0.6}
-                          />
-                          {/* body */}
-                          <rect
-                            x={x}
-                            y={bodyTop}
-                            width={barWidth}
-                            height={bodyH}
-                            rx={1}
-                            fill={color}
-                          />
-                        </g>
-                      );
-                    })}
-                  </svg>
-
-                  {/* price line */}
-                  <div className="absolute right-0 top-1/3 w-full border-t border-dashed border-primary-500/30" />
-                  <div className="absolute right-2 top-[calc(33%-10px)] font-mono text-[10px] font-semibold text-primary-400 bg-primary-500/10 px-1.5 py-0.5 rounded">
-                    ${displayPrice}
-                  </div>
-                </div>
-              )}
+              <StreamingChart
+                symbol={wsSymbol}
+                onPriceUpdate={(p) => setCurrentPrice(p)}
+              />
 
               {/* Replay controls (overlaid on chart) */}
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-2 rounded-full bg-t0-depth/90 border border-white/[0.06] backdrop-blur-xl">
@@ -570,193 +415,10 @@ function TradePageInner() {
 
           {/* ---- Order Panel column ---- */}
           <aside className="w-[340px] shrink-0 border-l border-white/[0.06] bg-t0-surface overflow-y-auto max-lg:hidden">
-            {OrderPanelReal ? (
-              <OrderPanelReal
-                symbol={symbol}
-                currentPrice={currentPrice}
-              />
-            ) : (
-              /* Inline fallback order panel */
-              <div className="p-5">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-base font-bold text-dark-50">
-                    Place Order
-                  </h3>
-                  <span className="px-2.5 py-1 rounded-md bg-primary-500/10 text-primary-400 text-xs font-semibold">
-                    {symbol}
-                  </span>
-                </div>
-
-                {/* Order type tabs */}
-                <div className="flex gap-1 p-1 bg-t0-depth rounded-lg mb-4">
-                  {ORDER_TYPES.map((ot) => (
-                    <button
-                      key={ot}
-                      onClick={() => setOrderType(ot)}
-                      className={`flex-1 py-2 rounded-md text-[13px] font-medium transition-all ${
-                        orderType === ot
-                          ? "bg-t0-surface text-dark-50"
-                          : "text-dark-500 hover:text-dark-300"
-                      }`}
-                    >
-                      {ot}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Buy/Sell toggle */}
-                <div className="flex gap-2.5 mb-4">
-                  <button
-                    onClick={() => setSide("BUY")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-lg text-sm font-bold transition-all ${
-                      side === "BUY"
-                        ? "bg-gradient-to-br from-profit-500 to-profit-600 text-white shadow-glow-primary"
-                        : "bg-t0-depth border border-white/[0.06] text-dark-500 hover:text-dark-300"
-                    }`}
-                  >
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M12 19V5M5 12l7-7 7 7" />
-                    </svg>
-                    Long
-                  </button>
-                  <button
-                    onClick={() => setSide("SELL")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-lg text-sm font-bold transition-all ${
-                      side === "SELL"
-                        ? "bg-gradient-to-br from-loss-500 to-loss-600 text-white shadow-glow-rose"
-                        : "bg-t0-depth border border-white/[0.06] text-dark-500 hover:text-dark-300"
-                    }`}
-                  >
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M12 5v14M5 12l7 7 7-7" />
-                    </svg>
-                    Short
-                  </button>
-                </div>
-
-                {/* Limit price (shown only for Limit orders) */}
-                {orderType === "Limit" && (
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-dark-500 mb-2">
-                      Limit Price
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={limitPrice}
-                        onChange={(e) => setLimitPrice(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full h-11 px-3 pr-14 rounded-lg bg-t0-depth border border-white/[0.06] text-dark-50 font-mono text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30 transition-colors"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-dark-600">
-                        USDT
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Size input */}
-                <div className="mb-4">
-                  <label className="block text-xs font-medium text-dark-500 mb-2">
-                    Size
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={qty}
-                      onChange={(e) => setQty(e.target.value)}
-                      placeholder="0.00"
-                      step="0.001"
-                      min="0"
-                      className="w-full h-11 px-3 pr-14 rounded-lg bg-t0-depth border border-white/[0.06] text-dark-50 font-mono text-sm focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500/30 transition-colors"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-dark-600">
-                      {symbol.split("-")[0]}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Leverage slider */}
-                <div className="mb-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-dark-500">
-                      Leverage
-                    </label>
-                    <span className="font-mono text-sm font-bold text-primary-400">
-                      {leverage}x
-                    </span>
-                  </div>
-                  {/* Slider track */}
-                  <input
-                    type="range"
-                    min={2}
-                    max={25}
-                    value={leverage}
-                    onChange={(e) => setLeverage(Number(e.target.value))}
-                    className="w-full h-1.5 rounded-full appearance-none bg-t0-depth [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-glow-primary"
-                  />
-                  {/* Leverage marks */}
-                  <div className="flex justify-between mt-2">
-                    {LEVERAGE_MARKS.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setLeverage(m)}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
-                          leverage === m
-                            ? "text-primary-400 bg-primary-500/10"
-                            : "text-dark-600 hover:text-dark-400"
-                        }`}
-                      >
-                        {m}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Margin info */}
-                <div className="rounded-lg bg-t0-depth p-3 mb-4 space-y-2">
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-dark-500">Est. Value</span>
-                    <span className="font-mono text-dark-100">${estValue}</span>
-                  </div>
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-dark-500">Margin</span>
-                    <span className="font-mono text-dark-100">${margin}</span>
-                  </div>
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-dark-500">Fees (est.)</span>
-                    <span className="font-mono text-dark-400">~$0.00</span>
-                  </div>
-                </div>
-
-                {/* Submit */}
-                <button
-                  className={`w-full py-4 rounded-xl text-[15px] font-bold transition-all ${
-                    side === "BUY"
-                      ? "t0-btn t0-btn-long"
-                      : "t0-btn t0-btn-short"
-                  }`}
-                >
-                  {side === "BUY" ? "Buy / Long" : "Sell / Short"}
-                </button>
-              </div>
-            )}
+            <OrderPanelReal
+              symbol={symbol}
+              currentPrice={currentPrice}
+            />
           </aside>
 
           {/* Mobile order panel (bottom sheet) */}
@@ -772,17 +434,11 @@ function TradePageInner() {
                 <div className="flex justify-center pt-3 pb-1">
                   <div className="w-10 h-1 rounded-full bg-white/[0.15]" />
                 </div>
-                {OrderPanelReal ? (
-                  <OrderPanelReal
-                    symbol={symbol}
-                    currentPrice={currentPrice}
-                    onOrderSubmit={() => setMobileOrderOpen(false)}
-                  />
-                ) : (
-                  <div className="p-5 text-center text-dark-500 text-sm">
-                    Order panel unavailable
-                  </div>
-                )}
+                <OrderPanelReal
+                  symbol={symbol}
+                  currentPrice={currentPrice}
+                  onOrderSubmit={() => setMobileOrderOpen(false)}
+                />
               </div>
             </div>
           )}
