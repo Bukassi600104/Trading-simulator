@@ -24,6 +24,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
   const [traderTag, setTraderTag] = useState('');
   const [tagAvailable, setTagAvailable] = useState<boolean | null>(null);
   const [tagChecking, setTagChecking] = useState(false);
+  const [emailSent, setEmailSent] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   
   const { register, isLoading, error, clearError } = useAuthStore();
@@ -83,10 +84,17 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
     
     const success = await register(email, password, traderTag || undefined);
     if (success) {
-      resetOnboarding();
-      if (traderTag) setTradertag(traderTag);
-      if (onSuccess) onSuccess();
-      router.push('/onboarding');
+      // Check if user is now authenticated (instant signup) or needs email confirmation
+      const { isAuthenticated } = useAuthStore.getState();
+      if (isAuthenticated) {
+        resetOnboarding();
+        if (traderTag) setTradertag(traderTag);
+        if (onSuccess) onSuccess();
+        router.push('/onboarding');
+      } else {
+        // Email confirmation required — show check-your-email screen
+        setEmailSent(email);
+      }
     }
   };
 
@@ -106,6 +114,47 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFor
   };
 
   const { strength, label } = getPasswordStrength();
+
+  // Show email confirmation screen
+  if (emailSent) {
+    return (
+      <div style={{ textAlign: 'center', padding: '8px 0' }}>
+        <div style={{
+          width: '64px', height: '64px', borderRadius: '50%',
+          background: 'linear-gradient(135deg, var(--mint-500), var(--mint-600))',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 20px',
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--void)" strokeWidth="2.5">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+            <polyline points="22,6 12,13 2,6" />
+          </svg>
+        </div>
+        <h3 style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          Check Your Email
+        </h3>
+        <p style={{ margin: '0 0 8px', color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1.6 }}>
+          We sent a confirmation link to:
+        </p>
+        <p style={{ margin: '0 0 20px', color: 'var(--mint-400)', fontSize: '14px', fontWeight: 600 }}>
+          {emailSent}
+        </p>
+        <p style={{ margin: '0 0 24px', color: 'var(--text-ghost)', fontSize: '13px', lineHeight: 1.6 }}>
+          Click the link in the email to activate your account. Check your spam folder if you don't see it.
+        </p>
+        <button
+          onClick={() => setEmailSent(null)}
+          style={{
+            background: 'none', border: 'none',
+            color: 'var(--mint-400)', fontSize: '13px', fontWeight: 600,
+            cursor: 'pointer', textDecoration: 'underline',
+          }}
+        >
+          Back to sign up
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="register-form">

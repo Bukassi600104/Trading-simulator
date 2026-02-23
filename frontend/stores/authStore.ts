@@ -324,7 +324,14 @@ function createSupabaseActions(set: any, get: any) {
     register: async (email: string, password: string, username?: string): Promise<boolean> => {
       set({ isLoading: true, error: null });
       try {
-        const { data, error } = await sb.auth.signUp({ email, password });
+        const redirectTo = typeof window !== 'undefined'
+          ? `${window.location.origin}/auth/callback`
+          : 'https://terminalzero.vercel.app/auth/callback';
+        const { data, error } = await sb.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: redirectTo },
+        });
         if (error) throw new Error(error.message);
 
         if (!data.session) {

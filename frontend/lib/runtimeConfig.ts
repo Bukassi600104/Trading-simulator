@@ -6,26 +6,27 @@ function isLocalFrontendHost(hostname: string): boolean {
 	return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
+// Production Railway backend URL (used when NEXT_PUBLIC_API_URL is not set)
+const RAILWAY_BACKEND = "https://trading-simulator-production-9863.up.railway.app";
+
 function resolveApiBase(): string {
 	const explicit = process.env.NEXT_PUBLIC_API_URL;
 	if (explicit) return stripTrailingSlash(explicit);
 
-	// If we're in the browser, infer a safe default.
 	if (typeof window !== "undefined") {
-		const { protocol, hostname, origin } = window.location;
+		const { protocol, hostname } = window.location;
 
 		// Local dev default.
 		if (protocol.startsWith("http") && isLocalFrontendHost(hostname)) {
 			return "http://localhost:8000";
 		}
 
-		// Production default: same-origin. (If your API is on another domain,
-		// set NEXT_PUBLIC_API_URL at build time.)
-		return stripTrailingSlash(origin);
+		// Production: always use the Railway backend, not the Vercel frontend origin.
+		return RAILWAY_BACKEND;
 	}
 
 	// Build-time/SSR fallback.
-	return "http://localhost:8000";
+	return RAILWAY_BACKEND;
 }
 
 function resolveWsBase(): string {
@@ -33,17 +34,16 @@ function resolveWsBase(): string {
 	if (explicit) return stripTrailingSlash(explicit);
 
 	if (typeof window !== "undefined") {
-		const { protocol, hostname, host } = window.location;
+		const { protocol, hostname } = window.location;
 
 		if (protocol.startsWith("http") && isLocalFrontendHost(hostname)) {
 			return "ws://localhost:8000";
 		}
 
-		const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
-		return `${wsProtocol}//${host}`;
+		return "wss://trading-simulator-production-9863.up.railway.app";
 	}
 
-	return "ws://localhost:8000";
+	return "wss://trading-simulator-production-9863.up.railway.app";
 }
 
 export const API_BASE = resolveApiBase();

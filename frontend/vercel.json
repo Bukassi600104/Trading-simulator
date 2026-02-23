@@ -2,5 +2,11 @@
   "installCommand": "npm ci --legacy-peer-deps",
   "buildCommand": "npm run build",
   "outputDirectory": "out",
-  "framework": null
+  "framework": null,
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_API_URL": "https://trading-simulator-production-9863.up.railway.app",
+      "NEXT_PUBLIC_WS_URL": "wss://trading-simulator-production-9863.up.railway.app"
+    }
+  }
 }

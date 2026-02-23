@@ -127,10 +127,10 @@ function XIcon({ className, style }: { className?: string; style?: React.CSSProp
 
 function ComparisonCell({ value }: { value: boolean | string }) {
   if (typeof value === "string") {
-    return <span className="text-xs font-semibold" style={{ color: "#a5b4fc" }}>{value}</span>;
+    return <span className="text-xs font-semibold" style={{ color: "#6ee7b7" }}>{value}</span>;
   }
   if (value) {
-    return <CheckIcon className="w-5 h-5 mx-auto" style={{ color: "#6366f1" }} />;
+    return <CheckIcon className="w-5 h-5 mx-auto" style={{ color: "#11d473" }} />;
   }
   return <XIcon className="w-4 h-4 mx-auto" style={{ color: "rgba(255,255,255,0.2)" }} />;
 }
@@ -225,31 +225,31 @@ function PricingPageInner() {
   return (
     <div className="relative min-h-screen overflow-x-hidden" style={{ background: "#070714" }}>
       {/* Ambient bg */}
-      <div className="fixed inset-0 pointer-events-none z-0" style={{ background: "radial-gradient(ellipse 70% 50% at 50% -10%, rgba(99,102,241,0.12), transparent), radial-gradient(ellipse 50% 40% at 80% 80%, rgba(99,102,241,0.05), transparent)" }} aria-hidden="true" />
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle, rgba(99,102,241,0.12) 1px, transparent 1px)", backgroundSize: "40px 40px" }} aria-hidden="true" />
+      <div className="fixed inset-0 pointer-events-none z-0" style={{ background: "radial-gradient(ellipse 70% 50% at 50% -10%, rgba(17,212,115,0.08), transparent), radial-gradient(ellipse 50% 40% at 80% 80%, rgba(17,212,115,0.04), transparent)" }} aria-hidden="true" />
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle, rgba(17,212,115,0.08) 1px, transparent 1px)", backgroundSize: "40px 40px" }} aria-hidden="true" />
 
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl" style={{ background: "rgba(7,7,20,0.85)" }}>
         <div className="max-w-[1400px] mx-auto flex items-center justify-between px-6 md:px-8 py-4">
           <Link href="/landing" className="flex items-center gap-3 no-underline">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-sm" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#fff" }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center font-mono font-bold text-sm" style={{ background: "linear-gradient(135deg, #11d473, #0fa866)", color: "#fff" }}>
               T<span style={{ opacity: 0.6 }}>0</span>
             </div>
             <span className="text-base font-bold tracking-tight text-white hidden sm:inline">Terminal Zero</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <Link href="/landing" className="text-sm font-medium no-underline hover:text-white/90 transition-colors" style={{ color: "rgba(255,255,255,0.5)" }}>Home</Link>
-            <Link href="/pricing" className="text-sm font-medium no-underline" style={{ color: "#818cf8" }}>Pricing</Link>
+            <Link href="/pricing" className="text-sm font-medium no-underline" style={{ color: "#11d473" }}>Pricing</Link>
           </div>
           <div className="flex items-center gap-3">
             {mounted && isAuthenticated ? (
-              <button onClick={() => router.push("/dashboard")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white transition-all" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", boxShadow: "0 2px 16px rgba(99,102,241,0.35)" }}>
+              <button onClick={() => router.push("/dashboard")} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white transition-all" style={{ background: "linear-gradient(135deg, #11d473, #0fa866)", boxShadow: "0 2px 16px rgba(17,212,115,0.3)" }}>
                 Dashboard
               </button>
             ) : (
               <>
                 <button onClick={openLogin} className="px-4 py-2 rounded-lg text-sm font-medium border border-white/10 hover:border-white/20 transition-colors" style={{ color: "rgba(255,255,255,0.6)" }}>Sign In</button>
-                <button onClick={openRegister} className="px-4 py-2 rounded-lg text-sm font-bold text-white transition-all" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", boxShadow: "0 2px 16px rgba(99,102,241,0.35)" }}>Start Free</button>
+                <button onClick={openRegister} className="px-4 py-2 rounded-lg text-sm font-bold text-white transition-all" style={{ background: "linear-gradient(135deg, #11d473, #0fa866)", boxShadow: "0 2px 16px rgba(17,212,115,0.3)" }}>Start Free</button>
               </>
             )}
           </div>
@@ -259,13 +259,13 @@ function PricingPageInner() {
       {/* HERO */}
       <section className="relative z-10 pt-36 pb-6 px-6 text-center">
         <div className="mx-auto max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)", color: "#818cf8" }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#6366f1" }} />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6" style={{ background: "rgba(17,212,115,0.06)", border: "1px solid rgba(17,212,115,0.25)", color: "#11d473" }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#11d473" }} />
             Simple, transparent pricing
           </div>
           <h1 className="text-5xl lg:text-[56px] font-extrabold leading-[1.08] tracking-tight mb-5 text-white">
             Level up your{" "}
-            <span style={{ background: "linear-gradient(135deg, #818cf8, #6366f1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>trading edge</span>
+            <span style={{ background: "linear-gradient(135deg, #11d473, #11d473)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>trading edge</span>
           </h1>
           <p className="text-lg leading-relaxed max-w-lg mx-auto" style={{ color: "rgba(255,255,255,0.5)" }}>
             Start free, upgrade when you are ready. All plans include paper trading with real market data from Bybit.
@@ -273,7 +273,7 @@ function PricingPageInner() {
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-7 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
             {["14-day free trial", "Cancel anytime", "No credit card for trial"].map((s) => (
               <span key={s} className="flex items-center gap-1.5">
-                <CheckIcon className="w-4 h-4" style={{ color: "#6366f1" }} />{s}
+                <CheckIcon className="w-4 h-4" style={{ color: "#11d473" }} />{s}
               </span>
             ))}
           </div>
@@ -283,8 +283,8 @@ function PricingPageInner() {
       {/* BILLING TOGGLE */}
       <section className="relative z-10 flex justify-center px-6 mb-14 mt-8">
         <div className="inline-flex items-center gap-1 p-1 rounded-full" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <button onClick={() => setBillingCycle("monthly")} className="px-6 py-2 rounded-full text-sm font-semibold transition-all duration-200" style={billingCycle === "monthly" ? { background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#fff", boxShadow: "0 2px 12px rgba(99,102,241,0.4)" } : { color: "rgba(255,255,255,0.5)" }}>Monthly</button>
-          <button onClick={() => setBillingCycle("annual")} className="px-6 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-2" style={billingCycle === "annual" ? { background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#fff", boxShadow: "0 2px 12px rgba(99,102,241,0.4)" } : { color: "rgba(255,255,255,0.5)" }}>
+          <button onClick={() => setBillingCycle("monthly")} className="px-6 py-2 rounded-full text-sm font-semibold transition-all duration-200" style={billingCycle === "monthly" ? { background: "linear-gradient(135deg, #11d473, #0fa866)", color: "#fff", boxShadow: "0 2px 12px rgba(17,212,115,0.35)" } : { color: "rgba(255,255,255,0.5)" }}>Monthly</button>
+          <button onClick={() => setBillingCycle("annual")} className="px-6 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center gap-2" style={billingCycle === "annual" ? { background: "linear-gradient(135deg, #11d473, #0fa866)", color: "#fff", boxShadow: "0 2px 12px rgba(17,212,115,0.35)" } : { color: "rgba(255,255,255,0.5)" }}>
             Annual
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.2)" }}>Save 50%</span>
           </button>
@@ -328,7 +328,7 @@ function PricingPageInner() {
         {billingCycle === "monthly" && (
           <p className="text-center mt-6 text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
             Switch to{" "}
-            <button onClick={() => setBillingCycle("annual")} className="underline underline-offset-2" style={{ color: "#818cf8" }}>annual billing</button>
+            <button onClick={() => setBillingCycle("annual")} className="underline underline-offset-2" style={{ color: "#11d473" }}>annual billing</button>
             {" "}to save 50% — Pro at $59.99/yr, Elite at $149.99/yr.
           </p>
         )}
@@ -344,14 +344,14 @@ function PricingPageInner() {
       {/* FEATURE COMPARISON */}
       <section className="relative z-10 max-w-[1000px] mx-auto px-6 pb-24">
         <div className="text-center mb-12">
-          <span className="inline-block px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-5" style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.18)" }}>Compare Plans</span>
+          <span className="inline-block px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-5" style={{ background: "rgba(17,212,115,0.06)", color: "#11d473", border: "1px solid rgba(17,212,115,0.18)" }}>Compare Plans</span>
           <h2 className="text-3xl font-extrabold tracking-tight text-white">Everything side by side</h2>
         </div>
         <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="grid grid-cols-4 px-6 py-4" style={{ background: "rgba(0,0,0,0.3)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.4)" }}>Feature</div>
             <div className="text-sm font-semibold text-center" style={{ color: "rgba(255,255,255,0.5)" }}>Free</div>
-            <div className="text-sm font-semibold text-center" style={{ color: "#818cf8" }}>Pro</div>
+            <div className="text-sm font-semibold text-center" style={{ color: "#11d473" }}>Pro</div>
             <div className="text-sm font-semibold text-center" style={{ color: "rgba(255,255,255,0.7)" }}>Elite</div>
           </div>
           {COMPARISON_FEATURES.map((row, i) => (
@@ -368,12 +368,12 @@ function PricingPageInner() {
       {/* FAQ */}
       <section className="relative z-10 max-w-[720px] mx-auto px-6 pb-24">
         <div className="text-center mb-12">
-          <span className="inline-block px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-5" style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.18)" }}>FAQ</span>
+          <span className="inline-block px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest mb-5" style={{ background: "rgba(17,212,115,0.06)", color: "#11d473", border: "1px solid rgba(17,212,115,0.18)" }}>FAQ</span>
           <h2 className="text-3xl font-extrabold tracking-tight text-white">Common questions</h2>
         </div>
         <div className="space-y-3">
           {FAQ_ITEMS.map((item, i) => (
-            <div key={i} className="rounded-xl transition-all duration-200" style={{ border: openFaq === i ? "1px solid rgba(99,102,241,0.25)" : "1px solid rgba(255,255,255,0.06)", background: openFaq === i ? "rgba(99,102,241,0.03)" : "rgba(255,255,255,0.02)" }}>
+            <div key={i} className="rounded-xl transition-all duration-200" style={{ border: openFaq === i ? "1px solid rgba(17,212,115,0.25)" : "1px solid rgba(255,255,255,0.06)", background: openFaq === i ? "rgba(17,212,115,0.03)" : "rgba(255,255,255,0.02)" }}>
               <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between px-6 py-4 text-left gap-4">
                 <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.8)" }}>{item.q}</span>
                 <svg className={`w-5 h-5 shrink-0 transition-transform duration-200 ${openFaq === i ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" style={{ color: "rgba(255,255,255,0.3)" }}>
@@ -392,10 +392,10 @@ function PricingPageInner() {
 
       {/* BOTTOM CTA */}
       <section className="relative z-10 px-6 pb-24">
-        <div className="max-w-[680px] mx-auto text-center px-8 py-16 rounded-3xl" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.07) 0%, rgba(99,102,241,0.03) 100%)", border: "1px solid rgba(99,102,241,0.18)" }}>
+        <div className="max-w-[680px] mx-auto text-center px-8 py-16 rounded-3xl" style={{ background: "linear-gradient(135deg, rgba(17,212,115,0.06) 0%, rgba(17,212,115,0.03) 100%)", border: "1px solid rgba(17,212,115,0.18)" }}>
           <h2 className="text-3xl font-extrabold text-white mb-3 tracking-tight">Start trading smarter today</h2>
           <p className="text-lg mb-8" style={{ color: "rgba(255,255,255,0.45)" }}>Join thousands of traders honing their skills on Terminal Zero.</p>
-          <button onClick={openRegister} className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-white text-base transition-all duration-200 hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", boxShadow: "0 4px 24px rgba(99,102,241,0.45)" }}>
+          <button onClick={openRegister} className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-white text-base transition-all duration-200 hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #11d473, #0fa866)", boxShadow: "0 4px 24px rgba(17,212,115,0.4)" }}>
             Create Free Account
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4.167 10h11.666M10 4.167L15.833 10 10 15.833" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
@@ -407,7 +407,7 @@ function PricingPageInner() {
       <footer className="relative z-10 py-10 px-6 md:px-8" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#fff" }}>T<span style={{ opacity: 0.6 }}>0</span></div>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm" style={{ background: "linear-gradient(135deg, #11d473, #0fa866)", color: "#fff" }}>T<span style={{ opacity: 0.6 }}>0</span></div>
             <span className="font-semibold" style={{ color: "rgba(255,255,255,0.8)" }}>Terminal Zero</span>
           </div>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>Trading simulator for educational purposes. No real funds involved.</p>
@@ -445,27 +445,27 @@ interface PricingCardProps {
 
 function PricingCard({ tier, icon, subtitle, price, period, billingNote, features, ctaLabel, ctaStyle, onCta, ctaLoading, isPopular, isAuthenticated, dashboardHref }: PricingCardProps) {
   const cardStyle: React.CSSProperties = isPopular
-    ? { background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.35)", position: "relative" }
+    ? { background: "rgba(17,212,115,0.04)", border: "1px solid rgba(17,212,115,0.3)", position: "relative" }
     : { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", position: "relative" };
 
   const ctaBtnStyle: React.CSSProperties =
     ctaStyle === "primary"
-      ? { background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#fff", boxShadow: "0 4px 20px rgba(99,102,241,0.45)" }
+      ? { background: "linear-gradient(135deg, #11d473, #0fa866)", color: "#fff", boxShadow: "0 4px 20px rgba(17,212,115,0.4)" }
       : ctaStyle === "secondary"
       ? { background: "rgba(255,255,255,0.06)", color: "#e0e7ff", border: "1px solid rgba(255,255,255,0.12)" }
-      : { background: "transparent", color: "#818cf8", border: "1px solid rgba(99,102,241,0.35)" };
+      : { background: "transparent", color: "#11d473", border: "1px solid rgba(17,212,115,0.3)" };
 
   return (
     <div className="rounded-2xl p-8 flex flex-col relative overflow-hidden" style={cardStyle}>
       {isPopular && (
         <div className="absolute top-0 left-0 right-0 flex justify-center" style={{ zIndex: 2 }}>
-          <div className="px-4 py-1 rounded-b-full text-[11px] font-bold uppercase tracking-widest" style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#fff", boxShadow: "0 4px 16px rgba(99,102,241,0.4)" }}>
+          <div className="px-4 py-1 rounded-b-full text-[11px] font-bold uppercase tracking-widest" style={{ background: "linear-gradient(135deg, #11d473, #0fa866)", color: "#fff", boxShadow: "0 4px 16px rgba(17,212,115,0.35)" }}>
             Most Popular
           </div>
         </div>
       )}
       <div className={`flex items-center gap-3 ${isPopular ? "mt-5" : ""} mb-6`}>
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)", color: "#818cf8" }}>{icon}</div>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "rgba(17,212,115,0.08)", border: "1px solid rgba(17,212,115,0.18)", color: "#11d473" }}>{icon}</div>
         <div>
           <h3 className="text-base font-bold text-white">{tier}</h3>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{subtitle}</p>
@@ -481,7 +481,7 @@ function PricingCard({ tier, icon, subtitle, price, period, billingNote, feature
       <ul className="flex-1 space-y-3 mb-8">
         {features.map((f) => (
           <li key={f} className="flex items-start gap-3 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
-            <CheckIcon className="w-5 h-5 mt-0.5 shrink-0" style={{ color: "#6366f1" }} />{f}
+            <CheckIcon className="w-5 h-5 mt-0.5 shrink-0" style={{ color: "#11d473" }} />{f}
           </li>
         ))}
       </ul>
