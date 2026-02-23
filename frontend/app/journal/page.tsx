@@ -1,7 +1,7 @@
 "use client";
 
 import { apiFetch } from "@/lib/api";
-import Navbar from "@/components/layout/Navbar";
+import AppShell from "@/components/layout/AppShell";
 import { useAuthStore } from "@/stores/authStore";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -146,10 +146,10 @@ export default function JournalPage() {
   };
 
   return (
+    <AppShell>
     <div className="journal-page">
-      <Navbar />
 
-      <main className="journal-content">
+      <div className="journal-content">
         <div className="page-header">
           <h1>Trading Journal</h1>
           <p className="subtitle">Review and reflect on your trades</p>
@@ -276,7 +276,7 @@ export default function JournalPage() {
             )}
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Journal Modal */}
       {journalModalOpen && selectedTrade && (
@@ -291,8 +291,7 @@ export default function JournalPage() {
 
       <style jsx>{`
         .journal-page {
-          min-height: 100vh;
-          background: #0F172A;
+          min-height: 100%;
         }
 
         .journal-content {
@@ -609,6 +608,7 @@ export default function JournalPage() {
         }
       `}</style>
     </div>
+    </AppShell>
   );
 }
 

@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useFeatureGate } from '@/hooks/useFeatureGate'
 import Link from 'next/link'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import AppShell from '@/components/layout/AppShell'
+import { API_BASE } from '@/lib/runtimeConfig'
+import { useAuthStore } from '@/stores/authStore'
 
 const SYMBOLS = ['BTC-USDT', 'ETH-USDT', 'SOL-USDT', 'BNB-USDT', 'XRP-USDT', 'DOGE-USDT']
 const INTERVALS = [
@@ -106,6 +107,7 @@ function EquityCurve({ data, starting }: { data: Array<{ timestamp: string; equi
 
 export default function BacktestingPage() {
   const { hasAccess } = useFeatureGate('backtesting')
+  const token = useAuthStore((state) => state.token)
 
   const [symbol, setSymbol] = useState('BTC-USDT')
   const [interval, setInterval] = useState('60')
@@ -125,8 +127,7 @@ export default function BacktestingPage() {
     setError(null)
     setResult(null)
     try {
-      const token = localStorage.getItem('access_token')
-      const res = await fetch(`${API_URL}/api/backtest/run`, {
+      const res = await fetch(`${API_BASE}/api/backtest/run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,10 +163,11 @@ export default function BacktestingPage() {
 
   if (!hasAccess) {
     return (
+      <AppShell>
       <div className="min-h-screen bg-[#070714] flex items-center justify-center p-6">
         <div className="bg-[#0d0d1a] border border-[#1a1a2e] rounded-2xl p-10 max-w-md text-center">
-          <div className="w-14 h-14 bg-indigo-500/15 border border-indigo-500/30 rounded-full flex items-center justify-center mx-auto mb-5">
-            <svg className="w-7 h-7 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="w-14 h-14 bg-[#11d473]/15 border border-[#11d473]/30 rounded-full flex items-center justify-center mx-auto mb-5">
+            <svg className="w-7 h-7 text-[#11d473]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
@@ -175,16 +177,18 @@ export default function BacktestingPage() {
           </p>
           <Link
             href="/pricing"
-            className="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+            className="inline-block bg-[#11d473] hover:bg-[#0fa866] text-[#020617] font-semibold px-6 py-3 rounded-lg transition-colors"
           >
             Upgrade to Pro &rarr;
           </Link>
         </div>
       </div>
+      </AppShell>
     )
   }
 
   return (
+    <AppShell>
     <div className="min-h-screen bg-[#070714] p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
@@ -200,7 +204,7 @@ export default function BacktestingPage() {
               <select
                 value={symbol}
                 onChange={e => setSymbol(e.target.value)}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               >
                 {SYMBOLS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -210,7 +214,7 @@ export default function BacktestingPage() {
               <select
                 value={interval}
                 onChange={e => setInterval(e.target.value)}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               >
                 {INTERVALS.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
               </select>
@@ -223,7 +227,7 @@ export default function BacktestingPage() {
                 onChange={e => setCapital(Number(e.target.value))}
                 min={100}
                 max={1000000}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               />
             </div>
             <div>
@@ -232,7 +236,7 @@ export default function BacktestingPage() {
                 type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               />
             </div>
             <div>
@@ -241,7 +245,7 @@ export default function BacktestingPage() {
                 type="date"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               />
             </div>
           </div>
@@ -252,7 +256,7 @@ export default function BacktestingPage() {
               <select
                 value={entryCondition}
                 onChange={e => setEntryCondition(e.target.value)}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               >
                 {ENTRY_CONDITIONS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -262,7 +266,7 @@ export default function BacktestingPage() {
               <select
                 value={exitCondition}
                 onChange={e => setExitCondition(e.target.value)}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               >
                 {EXIT_CONDITIONS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -276,7 +280,7 @@ export default function BacktestingPage() {
                 min={0}
                 max={50}
                 step={0.5}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               />
             </div>
             <div>
@@ -288,7 +292,7 @@ export default function BacktestingPage() {
                 min={0}
                 max={200}
                 step={1}
-                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#070714] border border-[#1a1a2e] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#11d473]"
               />
             </div>
           </div>
@@ -296,7 +300,7 @@ export default function BacktestingPage() {
           <button
             onClick={runBacktest}
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+            className="w-full bg-[#11d473] hover:bg-[#0fa866] disabled:opacity-50 disabled:cursor-not-allowed text-[#020617] font-semibold py-3 rounded-xl transition-colors"
           >
             {loading ? 'Running backtest...' : 'Run Backtest'}
           </button>
@@ -396,5 +400,6 @@ export default function BacktestingPage() {
         )}
       </div>
     </div>
+    </AppShell>
   )
 }
