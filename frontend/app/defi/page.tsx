@@ -226,7 +226,7 @@ export default function DeFiPage() {
               Simulate AMM liquidity provision, impermanent loss, and yield farming.
             </p>
           </div>
-          <span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-400 border border-purple-500/20">
+          <span className="rounded-full bg-[#11d473]/10 px-3 py-1 text-xs font-semibold text-[#11d473] border border-[#11d473]/20">
             Educational Simulation
           </span>
         </div>

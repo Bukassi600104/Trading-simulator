@@ -156,7 +156,7 @@ export default function TermsOfServicePage() {
         <h2 className="text-xl font-semibold text-white mb-3">12. Contact</h2>
         <p className="text-gray-400 leading-relaxed">
           For questions about these Terms of Service, contact us at{' '}
-          <a href="mailto:legal@terminalzero.com" className="text-indigo-400 hover:underline">legal@terminalzero.com</a>.
+          <a href="mailto:legal@terminalzero.com" className="text-[#11d473] hover:underline">legal@terminalzero.com</a>.
         </p>
       </section>
     </article>

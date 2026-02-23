@@ -105,7 +105,7 @@ export default function PrivacyPolicyPage() {
         <h2 className="text-xl font-semibold text-white mb-3">8. How to Exercise Your Rights</h2>
         <p className="text-gray-400 leading-relaxed">
           To exercise any of your data rights, contact us at{' '}
-          <a href="mailto:privacy@terminalzero.com" className="text-indigo-400 hover:underline">privacy@terminalzero.com</a>.
+          <a href="mailto:privacy@terminalzero.com" className="text-[#11d473] hover:underline">privacy@terminalzero.com</a>.
           We will respond to your request within 30 days. You may be asked to verify your identity before we
           process your request.
         </p>
@@ -139,7 +139,7 @@ export default function PrivacyPolicyPage() {
         <h2 className="text-xl font-semibold text-white mb-3">11. Contact</h2>
         <p className="text-gray-400 leading-relaxed">
           For any privacy-related questions or concerns, contact us at{' '}
-          <a href="mailto:privacy@terminalzero.com" className="text-indigo-400 hover:underline">privacy@terminalzero.com</a>.
+          <a href="mailto:privacy@terminalzero.com" className="text-[#11d473] hover:underline">privacy@terminalzero.com</a>.
         </p>
       </section>
     </article>

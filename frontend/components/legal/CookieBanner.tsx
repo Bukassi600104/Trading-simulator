@@ -26,11 +26,11 @@ export default function CookieBanner() {
       <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-sm text-gray-400 text-center sm:text-left">
           We use essential cookies for authentication and session management. Read our{' '}
-          <Link href="/legal/privacy" className="text-indigo-400 hover:underline">Privacy Policy</Link>.
+          <Link href="/legal/privacy" className="text-[#11d473] hover:underline">Privacy Policy</Link>.
         </p>
         <div className="flex gap-3 shrink-0">
           <button onClick={decline} className="px-4 py-1.5 text-sm text-gray-400 border border-[#1a1a2e] rounded-lg hover:border-gray-500 transition-colors">Decline</button>
-          <button onClick={accept} className="px-4 py-1.5 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors">Accept</button>
+          <button onClick={accept} className="px-4 py-1.5 text-sm text-[#020617] bg-[#11d473] rounded-lg hover:bg-[#0fa866] transition-colors">Accept</button>
         </div>
       </div>
     </div>

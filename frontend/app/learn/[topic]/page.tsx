@@ -265,7 +265,7 @@ export default function LearnPage({ params }: Props) {
       {/* Nav */}
       <nav className="border-b border-white/5 px-6 py-4">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/" className="text-lg font-bold text-indigo-400">
+          <Link href="/" className="text-lg font-bold text-[#11d473]">
             Terminal Zero
           </Link>
           <div className="flex items-center gap-3">
@@ -274,7 +274,7 @@ export default function LearnPage({ params }: Props) {
             </Link>
             <Link
               href="/landing?auth=register"
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+              className="rounded-lg bg-[#11d473] px-4 py-2 text-sm font-semibold text-[#020617] hover:bg-[#0fa866] transition-colors"
             >
               Practice Free →
             </Link>
@@ -313,8 +313,8 @@ export default function LearnPage({ params }: Props) {
             </div>
 
             {/* Practice CTA */}
-            <div className="mt-10 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-6">
-              <h3 className="mb-2 text-lg font-bold text-indigo-300">
+            <div className="mt-10 rounded-2xl border border-[#11d473]/20 bg-[#11d473]/5 p-6">
+              <h3 className="mb-2 text-lg font-bold text-[#6ee7b7]">
                 Practice {topic.title} Risk-Free
               </h3>
               <p className="mb-4 text-sm text-slate-400">
@@ -323,7 +323,7 @@ export default function LearnPage({ params }: Props) {
               </p>
               <Link
                 href="/landing?auth=register"
-                className="inline-block rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+                className="inline-block rounded-lg bg-[#11d473] px-6 py-2.5 text-sm font-semibold text-[#020617] hover:bg-[#0fa866] transition-colors"
               >
                 Start Paper Trading Free →
               </Link>

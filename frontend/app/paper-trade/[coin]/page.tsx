@@ -102,12 +102,12 @@ export default function PaperTradePage({ params }: Props) {
         {/* Nav */}
         <nav className="border-b border-white/5 px-6 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between">
-            <Link href="/" className="text-lg font-bold text-indigo-400">
+            <Link href="/" className="text-lg font-bold text-[#11d473]">
               Terminal Zero
             </Link>
             <Link
               href="/landing?auth=register"
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+              className="rounded-lg bg-[#11d473] px-4 py-2 text-sm font-semibold text-[#020617] hover:bg-[#0fa866] transition-colors"
             >
               Start Free →
             </Link>
@@ -117,12 +117,12 @@ export default function PaperTradePage({ params }: Props) {
         {/* Hero */}
         <header className="px-6 py-16 text-center">
           <div className="mx-auto max-w-3xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-4 py-1.5 text-sm font-medium text-indigo-400">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#11d473]/20 bg-[#11d473]/10 px-4 py-1.5 text-sm font-medium text-[#11d473]">
               Free Paper Trading
             </div>
             <h1 className="mb-4 text-4xl font-extrabold tracking-tight sm:text-5xl">
               Paper Trade{" "}
-              <span className="text-indigo-400">{coin.name}</span> — Zero Risk
+              <span className="text-[#11d473]">{coin.name}</span> — Zero Risk
             </h1>
             <p className="mb-8 text-lg text-slate-400">
               Practice {coin.symbol}/USDT trading with $10,000 in virtual funds. Real-time Bybit
@@ -131,7 +131,7 @@ export default function PaperTradePage({ params }: Props) {
             <div className="flex flex-col gap-3 sm:flex-row justify-center">
               <Link
                 href="/landing?auth=register"
-                className="rounded-xl bg-indigo-600 px-8 py-3.5 text-base font-semibold text-white hover:bg-indigo-500 transition-colors"
+                className="rounded-xl bg-[#11d473] px-8 py-3.5 text-base font-semibold text-[#020617] hover:bg-[#0fa866] transition-colors"
               >
                 Start Trading {coin.symbol} Free
               </Link>
@@ -242,7 +242,7 @@ export default function PaperTradePage({ params }: Props) {
                 <Link
                   key={c.slug}
                   href={`/paper-trade/${c.slug}`}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 hover:border-indigo-500/50 hover:text-indigo-400 transition-colors"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-300 hover:border-[#11d473]/50 hover:text-[#11d473] transition-colors"
                 >
                   Paper Trade {c.symbol}
                 </Link>
@@ -262,7 +262,7 @@ export default function PaperTradePage({ params }: Props) {
             </p>
             <Link
               href="/landing?auth=register"
-              className="rounded-xl bg-indigo-600 px-10 py-4 text-base font-semibold text-white hover:bg-indigo-500 transition-colors"
+              className="rounded-xl bg-[#11d473] px-10 py-4 text-base font-semibold text-[#020617] hover:bg-[#0fa866] transition-colors"
             >
               Create Free Account →
             </Link>

@@ -5,7 +5,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-[#070714]">
       <header className="border-b border-[#1a1a2e] px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="font-mono text-xl font-bold text-indigo-400">Terminal Zero</Link>
+          <Link href="/" className="font-mono text-xl font-bold text-[#11d473]">Terminal Zero</Link>
           <Link href="/" className="text-sm text-gray-400 hover:text-white transition-colors">&larr; Back to App</Link>
         </div>
       </header>
