@@ -8,8 +8,13 @@ Handles:
 - User authentication dependencies
 """
 
+import base64
+import json
 import os
 import re
+import threading
+import time
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -19,7 +24,45 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, field_validator
 
-from app.core.config import REDIS_URL, SUPABASE_JWT_SECRET
+from app.core.config import REDIS_URL, SUPABASE_JWT_SECRET, SUPABASE_URL
+
+# ---------------------------------------------------------------------------
+# JWKS cache for ES256 token verification (Supabase asymmetric keys)
+# ---------------------------------------------------------------------------
+_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json" if SUPABASE_URL else ""
+_jwks_keys: list = []
+_jwks_last_fetched: float = 0
+_jwks_lock = threading.Lock()
+
+
+def _fetch_jwks() -> list:
+    """Fetch Supabase JWKS synchronously with 1-hour in-memory cache."""
+    global _jwks_keys, _jwks_last_fetched
+    now = time.time()
+    with _jwks_lock:
+        if _jwks_keys and now - _jwks_last_fetched < 3600:
+            return _jwks_keys
+        if not _JWKS_URL:
+            return []
+        try:
+            req = urllib.request.urlopen(_JWKS_URL, timeout=5)
+            data = json.loads(req.read())
+            _jwks_keys = data.get("keys", [])
+            _jwks_last_fetched = now
+        except Exception:
+            pass  # Return stale cache on error
+        return _jwks_keys
+
+
+def _get_jwt_alg(token: str) -> str:
+    """Extract algorithm from JWT header without verification."""
+    try:
+        header_b64 = token.split(".")[0]
+        padded = header_b64 + "=" * (4 - len(header_b64) % 4)
+        header = json.loads(base64.urlsafe_b64decode(padded))
+        return header.get("alg", "HS256")
+    except Exception:
+        return "HS256"
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -161,32 +204,55 @@ def _get_jwt_secret() -> str:
 
 
 def decode_access_token(token: str) -> Optional[TokenData]:
-    """Decode and validate a Supabase JWT access token.
+    """Decode and validate a JWT access token.
 
-    Supabase JWTs use the `sub` claim for the user id and `email` claim
-    for the email address.  We accept tokens with any `typ` except
-    explicit refresh tokens.
+    Supports both ES256 (Supabase asymmetric keys, current default) and
+    HS256 (legacy JWT secret / demo tokens).
     """
-    secret = _get_jwt_secret()
-    try:
-        payload = jwt.decode(
-            token, secret, algorithms=[ALGORITHM],
-            options={"verify_aud": False},
-        )
-        # Reject refresh tokens used as access tokens
-        if payload.get("typ") == "refresh":
-            return None
-        user_id: str = payload.get("sub")
-        email: str = payload.get("email")
-        exp_ts = payload.get("exp")
-        exp: datetime = (
-            datetime.fromtimestamp(exp_ts, tz=timezone.utc) if exp_ts else None
-        )
-        if user_id is None:
-            return None
-        return TokenData(user_id=user_id, email=email, exp=exp)
-    except JWTError:
+    alg = _get_jwt_alg(token)
+
+    if alg == "ES256":
+        # Verify using Supabase JWKS public keys
+        keys = _fetch_jwks()
+        for key in keys:
+            try:
+                payload = jwt.decode(
+                    token, key, algorithms=["ES256"],
+                    options={"verify_aud": False},
+                )
+                if payload.get("typ") == "refresh":
+                    return None
+                user_id: str = payload.get("sub")
+                if user_id is None:
+                    return None
+                exp_ts = payload.get("exp")
+                return TokenData(
+                    user_id=user_id,
+                    email=payload.get("email"),
+                    exp=datetime.fromtimestamp(exp_ts, tz=timezone.utc) if exp_ts else None,
+                )
+            except JWTError:
+                continue
         return None
+    else:
+        # HS256 — legacy JWT secret or demo tokens
+        secret = _get_jwt_secret()
+        try:
+            payload = jwt.decode(
+                token, secret, algorithms=[ALGORITHM],
+                options={"verify_aud": False},
+            )
+            if payload.get("typ") == "refresh":
+                return None
+            user_id = payload.get("sub")
+            email = payload.get("email")
+            exp_ts = payload.get("exp")
+            exp = datetime.fromtimestamp(exp_ts, tz=timezone.utc) if exp_ts else None
+            if user_id is None:
+                return None
+            return TokenData(user_id=user_id, email=email, exp=exp)
+        except JWTError:
+            return None
 
 
 # ---------------------------------------------------------------------------
@@ -211,15 +277,28 @@ async def blacklist_token(token: str, expires_in_seconds: int) -> None:
 async def is_token_blacklisted(token: str) -> bool:
     """Check if a token has been blacklisted."""
     r = await get_redis()
-    secret = _get_jwt_secret()
-    try:
-        payload = jwt.decode(
-            token, secret, algorithms=[ALGORITHM],
-            options={"verify_exp": False, "verify_aud": False},
-        )
-        jti = payload.get("jti", token[:64])
-    except JWTError:
-        jti = token[:64]
+    alg = _get_jwt_alg(token)
+    payload = None
+    if alg == "ES256":
+        for key in _fetch_jwks():
+            try:
+                payload = jwt.decode(
+                    token, key, algorithms=["ES256"],
+                    options={"verify_exp": False, "verify_aud": False},
+                )
+                break
+            except JWTError:
+                continue
+    else:
+        secret = _get_jwt_secret()
+        try:
+            payload = jwt.decode(
+                token, secret, algorithms=[ALGORITHM],
+                options={"verify_exp": False, "verify_aud": False},
+            )
+        except JWTError:
+            pass
+    jti = (payload.get("jti", token[:64]) if payload else token[:64])
     result = await r.get(f"blacklist:{jti}")
     return result is not None
 
