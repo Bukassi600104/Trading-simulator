@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 
 interface StatsCardProps {
@@ -12,19 +13,7 @@ interface StatsCardProps {
   icon?: React.ReactNode;
 }
 
-// Lazy import UpgradeModal to avoid circular deps
-let UpgradeModalLazy: React.ComponentType<{
-  isOpen: boolean;
-  onClose: () => void;
-  featureName?: string;
-}> | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  UpgradeModalLazy = require("@/components/billing/UpgradeModal").default;
-} catch {
-  UpgradeModalLazy = null;
-}
+const UpgradeModalLazy = dynamic(() => import("@/components/billing/UpgradeModal"), { ssr: false });
 
 export default function StatsCard({
   title,
@@ -97,7 +86,7 @@ export default function StatsCard({
         )}
       </div>
 
-      {locked && UpgradeModalLazy && (
+      {locked && (
         <UpgradeModalLazy
           isOpen={upgradeOpen}
           onClose={() => setUpgradeOpen(false)}

@@ -1,20 +1,10 @@
 "use client";
 
 import { useAuthStore } from "@/stores/authStore";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
-let UpgradeModalLazy: React.ComponentType<{
-  isOpen: boolean;
-  onClose: () => void;
-  featureName?: string;
-}> | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  UpgradeModalLazy = require("@/components/billing/UpgradeModal").default;
-} catch {
-  UpgradeModalLazy = null;
-}
+const UpgradeModalLazy = dynamic(() => import("@/components/billing/UpgradeModal"), { ssr: false });
 
 const DISMISS_KEY = "t0-trial-banner-dismissed";
 
@@ -106,12 +96,10 @@ export default function TrialBanner() {
         </div>
       </div>
 
-      {UpgradeModalLazy && (
-        <UpgradeModalLazy
-          isOpen={upgradeOpen}
-          onClose={() => setUpgradeOpen(false)}
-        />
-      )}
+      <UpgradeModalLazy
+        isOpen={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+      />
     </>
   );
 }
