@@ -70,7 +70,7 @@ async function fetchWithTimeout(
   }
 }
 
-async function safeJson(response: Response): Promise<any> {
+async function safeJson(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     return null;
@@ -96,7 +96,7 @@ async function syncUserWithBackend(accessToken: string): Promise<User> {
   });
 
   if (!response.ok) {
-    const errorData = await safeJson(response);
+    const errorData = await safeJson(response) as { detail?: string } | null;
     throw new Error(errorData?.detail || `Backend sync failed (${response.status})`);
   }
 
@@ -147,7 +147,8 @@ export interface AuthState {
 // Fallback: direct backend API auth (when Supabase is not configured)
 // ---------------------------------------------------------------------------
 
-function createFallbackActions(set: any, get: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createFallbackActions(set: (...args: any[]) => void, get: () => any) {
   return {
     login: async (email: string, password: string): Promise<boolean> => {
       set({ isLoading: true, error: null });
@@ -159,7 +160,7 @@ function createFallbackActions(set: any, get: any) {
           body: JSON.stringify({ email, password }),
         });
         if (!response.ok) {
-          const errorData = await safeJson(response);
+          const errorData = await safeJson(response) as { detail?: string } | null;
           throw new Error(errorData?.detail || `Login failed (${response.status})`);
         }
         const data = await response.json();
@@ -195,7 +196,7 @@ function createFallbackActions(set: any, get: any) {
           body: JSON.stringify({ email, password, username }),
         });
         if (!response.ok) {
-          const errorData = await safeJson(response);
+          const errorData = await safeJson(response) as { detail?: string } | null;
           throw new Error(errorData?.detail || `Registration failed (${response.status})`);
         }
         const data = await response.json();
@@ -231,7 +232,7 @@ function createFallbackActions(set: any, get: any) {
           body: JSON.stringify({ email }),
         });
         if (!response.ok) {
-          const errorData = await safeJson(response);
+          const errorData = await safeJson(response) as { detail?: string } | null;
           throw new Error(errorData?.detail || `Request failed (${response.status})`);
         }
         const data = await response.json();
@@ -254,7 +255,7 @@ function createFallbackActions(set: any, get: any) {
           body: JSON.stringify({ token, new_password: newPassword }),
         });
         if (!response.ok) {
-          const errorData = await safeJson(response);
+          const errorData = await safeJson(response) as { detail?: string } | null;
           throw new Error(errorData?.detail || `Reset failed (${response.status})`);
         }
         set({ isLoading: false, error: null });
@@ -299,7 +300,8 @@ function createFallbackActions(set: any, get: any) {
 // Supabase auth actions (used when Supabase is configured)
 // ---------------------------------------------------------------------------
 
-function createSupabaseActions(set: any, get: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createSupabaseActions(set: (...args: any[]) => void, get: () => any) {
   // supabase is guaranteed non-null here
   const sb = supabase!;
 
@@ -341,7 +343,7 @@ function createSupabaseActions(set: any, get: any) {
 
         const accessToken = data.session.access_token;
         // Sync user to backend and pass username if provided
-        let user = await syncUserWithBackend(accessToken);
+        const user = await syncUserWithBackend(accessToken);
         if (username) {
           try {
             await fetchWithTimeout(`${API_BASE}/api/auth/me/onboarding`, {
@@ -455,7 +457,7 @@ export const useAuthStore = create<AuthState>()(
               method: 'POST',
             });
             if (!response.ok) {
-              const errorData = await safeJson(response);
+              const errorData = await safeJson(response) as { detail?: string } | null;
               throw new Error(errorData?.detail || `Failed to get demo token (${response.status})`);
             }
             const data = await response.json();

@@ -21,6 +21,9 @@ from app.core.security import TokenData, require_auth
 from app.core.config import TIER_PRICES, UserTier
 from app.models.user import User
 from app.models.payment import Payment, PaymentStatus
+from app.models.challenge import Challenge, ChallengeStatus, ChallengePhase
+from app.api.challenges import PHASE_CONFIG
+from app.models.portfolio import Portfolio
 
 router = APIRouter(prefix="/pay", tags=["payments"])
 
@@ -205,7 +208,7 @@ async def paystack_webhook(
             try:
                 stored_meta = json.loads(payment.metadata_json)
                 plan_type = stored_meta.get("plan_type")
-            except:
+            except Exception:
                 pass
                 
         # Upgrade user
@@ -219,8 +222,37 @@ async def paystack_webhook(
                     user.tier = UserTier.PRO
                 elif plan_type == "PROP_CHALLENGE":
                     user.tier = UserTier.PROP_CHALLENGE
-                    # TODO: Initialize prop challenge specific state here if needed
-                    # e.g. Reset balance to challenge amount, set start date, etc.
+
+                    # Create a dedicated challenge portfolio and Challenge record directly
+                    balance = Decimal("10000.00") # Challenge balance
+                    cfg = PHASE_CONFIG[ChallengePhase.PHASE_1]
+
+                    portfolio = Portfolio(
+                        id=uuid.uuid4(),
+                        user_id=user.id,
+                        balance=balance,
+                        starting_balance=balance,
+                        leverage=10,
+                        max_drawdown_watermark=balance,
+                        is_active=True,
+                    )
+                    db.add(portfolio)
+                    await db.flush()
+
+                    challenge = Challenge(
+                        user_id=user.id,
+                        portfolio_id=portfolio.id,
+                        phase=ChallengePhase.PHASE_1,
+                        status=ChallengeStatus.ACTIVE,
+                        starting_balance=balance,
+                        profit_target=balance * (1 + cfg["profit_target_pct"]),
+                        daily_drawdown_limit=balance * cfg["daily_drawdown_pct"],
+                        total_drawdown_limit=balance * cfg["total_drawdown_pct"],
+                        current_balance=balance,
+                        highest_balance=balance,
+                        daily_start_balance=balance,
+                    )
+                    db.add(challenge)
                 
                 db.add(user)
         

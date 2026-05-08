@@ -82,7 +82,7 @@ export default function DeFiPage() {
       fetchPositions();
     };
     run();
-  }, [checkAuth, router]);
+  }, [checkAuth, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchPools() {
     try {
