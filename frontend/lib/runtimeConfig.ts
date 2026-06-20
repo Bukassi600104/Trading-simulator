@@ -6,8 +6,8 @@ function isLocalFrontendHost(hostname: string): boolean {
 	return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
-// Production Railway backend URL (used when NEXT_PUBLIC_API_URL is not set)
-const RAILWAY_BACKEND = "https://trading-simulator-production-9863.up.railway.app";
+// Production backend URL (Vercel) used when NEXT_PUBLIC_API_URL is not set.
+const DEFAULT_BACKEND = "https://guardscope.app";
 
 function resolveApiBase(): string {
 	const explicit = process.env.NEXT_PUBLIC_API_URL;
@@ -21,12 +21,12 @@ function resolveApiBase(): string {
 			return "http://localhost:8000";
 		}
 
-		// Production: always use the Railway backend, not the Vercel frontend origin.
-		return RAILWAY_BACKEND;
+		// Production: the Vercel-hosted API, not the frontend origin.
+		return DEFAULT_BACKEND;
 	}
 
 	// Build-time/SSR fallback.
-	return RAILWAY_BACKEND;
+	return DEFAULT_BACKEND;
 }
 
 function resolveWsBase(): string {
@@ -40,10 +40,10 @@ function resolveWsBase(): string {
 			return "ws://localhost:8000";
 		}
 
-		return "wss://trading-simulator-production-9863.up.railway.app";
+		return "wss://guardscope.app";
 	}
 
-	return "wss://trading-simulator-production-9863.up.railway.app";
+	return "wss://guardscope.app";
 }
 
 export const API_BASE = resolveApiBase();

@@ -5,8 +5,10 @@
   "framework": null,
   "build": {
     "env": {
-      "NEXT_PUBLIC_API_URL": "https://trading-simulator-production-9863.up.railway.app",
-      "NEXT_PUBLIC_WS_URL": "wss://trading-simulator-production-9863.up.railway.app"
+      "NEXT_PUBLIC_API_URL": "https://guardscope.app",
+      "NEXT_PUBLIC_WS_URL": "wss://guardscope.app",
+      "NEXT_PUBLIC_SUPABASE_URL": "https://bitjizsdztitsxbtknvn.supabase.co",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpdGppenNkenRpdHN4YnRrbnZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5ODI2MjgsImV4cCI6MjA5NzU1ODYyOH0.DOgzUTFAN7-36Gu7IIemNmkumPx6I6GdE4_gMVyIIwQ"
     }
   }
 }
