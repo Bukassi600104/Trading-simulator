@@ -84,17 +84,31 @@ security = HTTPBearer(auto_error=False)
 # Redis client (lazy-init singleton)
 # ---------------------------------------------------------------------------
 _redis_client = None
+# Circuit breaker: once Redis is found unreachable (e.g. on a serverless host
+# with no Redis), skip it for the rest of the process so auth does not hang or
+# fail. Token-blacklist + lockout simply degrade (fail-open) without Redis.
+_redis_disabled = os.getenv("DISABLE_REDIS", "").strip().lower() in (
+    "1", "true", "yes", "on"
+)
 
 
 async def get_redis():
-    """Get or create the Redis client singleton."""
+    """Get or create the Redis client singleton, or None if unavailable."""
     global _redis_client
+    if _redis_disabled:
+        return None
     if _redis_client is None:
         import redis.asyncio as aioredis
         _redis_client = aioredis.from_url(
-            REDIS_URL, decode_responses=True, socket_connect_timeout=5
+            REDIS_URL, decode_responses=True, socket_connect_timeout=2
         )
     return _redis_client
+
+
+def _mark_redis_unavailable() -> None:
+    """Trip the circuit breaker after a Redis connection failure."""
+    global _redis_disabled
+    _redis_disabled = True
 
 
 # ---------------------------------------------------------------------------
@@ -291,8 +305,13 @@ def decode_access_token(token: str) -> Optional[TokenData]:
 # ---------------------------------------------------------------------------
 
 async def blacklist_token(token: str, expires_in_seconds: int) -> None:
-    """Add a token to the blacklist in Redis with TTL matching token expiry."""
+    """Add a token to the blacklist in Redis with TTL matching token expiry.
+
+    No-op when Redis is unavailable (e.g. serverless host without Redis).
+    """
     r = await get_redis()
+    if r is None:
+        return
     secret = _get_jwt_secret()
     try:
         payload = jwt.decode(
@@ -302,12 +321,21 @@ async def blacklist_token(token: str, expires_in_seconds: int) -> None:
         jti = payload.get("jti", token[:64])
     except JWTError:
         jti = token[:64]
-    await r.setex(f"blacklist:{jti}", expires_in_seconds, "1")
+    try:
+        await r.setex(f"blacklist:{jti}", expires_in_seconds, "1")
+    except Exception:
+        _mark_redis_unavailable()
 
 
 async def is_token_blacklisted(token: str) -> bool:
-    """Check if a token has been blacklisted."""
+    """Check if a token has been blacklisted.
+
+    Fails open (returns False) when Redis is unavailable so auth still works
+    on a host without Redis.
+    """
     r = await get_redis()
+    if r is None:
+        return False
     alg = _get_jwt_alg(token)
     payload = None
     if alg == "ES256":
@@ -330,7 +358,11 @@ async def is_token_blacklisted(token: str) -> bool:
         except JWTError:
             pass
     jti = (payload.get("jti", token[:64]) if payload else token[:64])
-    result = await r.get(f"blacklist:{jti}")
+    try:
+        result = await r.get(f"blacklist:{jti}")
+    except Exception:
+        _mark_redis_unavailable()
+        return False
     return result is not None
 
 
@@ -339,35 +371,56 @@ async def is_token_blacklisted(token: str) -> bool:
 # ---------------------------------------------------------------------------
 
 async def record_failed_login(email: str) -> int:
-    """Record a failed login attempt. Returns the current attempt count."""
+    """Record a failed login attempt. Returns the current attempt count.
+
+    Returns 0 when Redis is unavailable (lockout simply not tracked).
+    """
     r = await get_redis()
+    if r is None:
+        return 0
     key = f"login_attempts:{email}"
-    count = await r.incr(key)
-    if count == 1:
-        await r.expire(key, LOCKOUT_DURATION_SECONDS)
-    return count
+    try:
+        count = await r.incr(key)
+        if count == 1:
+            await r.expire(key, LOCKOUT_DURATION_SECONDS)
+        return count
+    except Exception:
+        _mark_redis_unavailable()
+        return 0
 
 
 async def clear_failed_logins(email: str) -> None:
     """Clear failed login attempts on successful login."""
     r = await get_redis()
-    await r.delete(f"login_attempts:{email}")
+    if r is None:
+        return
+    try:
+        await r.delete(f"login_attempts:{email}")
+    except Exception:
+        _mark_redis_unavailable()
 
 
 async def get_lockout_status(email: str) -> tuple[bool, int]:
     """Check if an account is locked out.
 
-    Returns (is_locked, remaining_seconds).
+    Returns (is_locked, remaining_seconds). Never locks out when Redis is
+    unavailable.
     """
     r = await get_redis()
-    key = f"login_attempts:{email}"
-    count = await r.get(key)
-    if count is None:
+    if r is None:
         return False, 0
-    if int(count) >= MAX_FAILED_ATTEMPTS:
-        ttl = await r.ttl(key)
-        return True, max(ttl, 0)
-    return False, 0
+    key = f"login_attempts:{email}"
+    try:
+        count = await r.get(key)
+        if count is None:
+            return False, 0
+        if int(count) >= MAX_FAILED_ATTEMPTS:
+            ttl = await r.ttl(key)
+            return True, max(ttl, 0)
+        return False, 0
+    except Exception:
+        _mark_redis_unavailable()
+        return False, 0
 
 
 # ---------------------------------------------------------------------------

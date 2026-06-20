@@ -9,3 +9,7 @@ alembic.ini
 *.pyc
 .localstorage/
 requirements-engine.txt
+# Tooling config only (poetry/ruff/black/pytest). Excluded so Vercel's Python
+# builder uses requirements.txt instead of trying `uv lock` on a non-PEP-621
+# pyproject.toml.
+pyproject.toml

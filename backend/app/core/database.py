@@ -35,7 +35,20 @@ if _needs_ssl:
     _ssl_ctx.verify_mode = ssl.CERT_NONE
     _connect_args["ssl"] = _ssl_ctx
 
-engine = create_async_engine(DATABASE_URL, echo=False, connect_args=_connect_args)
+# Serverless + Supabase pooler (Supavisor) compatibility.
+# On a transaction-mode pooler, asyncpg prepared statements break, so disable
+# the statement cache. On serverless we also avoid client-side pooling and let
+# the pooler manage connections (NullPool: open/close per checkout).
+_engine_kwargs: dict = {"echo": False, "connect_args": _connect_args}
+_is_pooled = "pooler.supabase.com" in DATABASE_URL
+_is_serverless = os.getenv("VERCEL") is not None
+if _is_pooled or _is_serverless:
+    from sqlalchemy.pool import NullPool
+
+    _connect_args["statement_cache_size"] = 0
+    _engine_kwargs["poolclass"] = NullPool
+
+engine = create_async_engine(DATABASE_URL, **_engine_kwargs)
 
 async_session_maker = async_sessionmaker(
     engine,
