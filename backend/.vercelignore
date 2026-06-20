@@ -1,0 +1,11 @@
+# Keep the serverless function small: exclude the heavy engine + non-API code.
+# These run on the persistent host (VPS), never on Vercel serverless.
+jesse_custom/
+services/
+tests/
+alembic/
+alembic.ini
+**/__pycache__/
+*.pyc
+.localstorage/
+requirements-engine.txt

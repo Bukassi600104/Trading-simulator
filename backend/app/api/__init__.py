@@ -1,25 +1,34 @@
-"""API module exports"""
+"""API module exports.
 
-from .admin import router as admin_router
-from .auth import router as auth_router
-from .challenges import router as challenges_router
-from .competitions import router as competitions_router
-from .gamification import router as gamification_router
-from .journal import router as journal_router
-from .leaderboard import router as leaderboard_router
-from .payments import router as payments_router
-from .portfolio import router as portfolio_router
-from .trading import router as trading_router
+Router submodules are imported defensively so that a module which needs heavy
+optional deps (numpy/pandas or the jesse engine) does not break importing the
+whole ``app.api`` package on a slim serverless host. Names that fail to import
+are simply absent from the package namespace there; they remain available on
+the persistent host that ships the full stack.
+"""
 
-__all__ = [
-    "trading_router",
-    "auth_router",
-    "journal_router",
-    "payments_router",
-    "admin_router",
-    "challenges_router",
-    "competitions_router",
-    "gamification_router",
-    "leaderboard_router",
-    "portfolio_router",
-]
+import importlib as _importlib
+
+_EXPORTS = {
+    "admin_router": "admin",
+    "auth_router": "auth",
+    "challenges_router": "challenges",
+    "competitions_router": "competitions",
+    "gamification_router": "gamification",
+    "journal_router": "journal",
+    "leaderboard_router": "leaderboard",
+    "payments_router": "payments",
+    "portfolio_router": "portfolio",
+    "trading_router": "trading",
+}
+
+__all__ = []
+
+for _attr, _module in _EXPORTS.items():
+    try:
+        _mod = _importlib.import_module(f".{_module}", __name__)
+        globals()[_attr] = _mod.router
+        __all__.append(_attr)
+    except Exception:  # pragma: no cover - missing heavy dep on slim host
+        # Router unavailable on this host; skip it.
+        pass

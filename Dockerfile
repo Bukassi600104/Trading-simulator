@@ -9,9 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy and install Python dependencies (full engine stack for the persistent host)
+COPY backend/requirements*.txt ./
+RUN pip install --no-cache-dir -r requirements-engine.txt
 
 # Copy backend source code
 COPY backend/ .

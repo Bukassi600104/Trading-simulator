@@ -5,6 +5,7 @@ and multi-user paper trading support
 """
 
 import asyncio
+import importlib
 import os
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -20,43 +21,56 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from app.api import trading_router
-from app.api.auth import router as auth_router
-from app.api.journal import router as journal_router
-from app.api.payments import router as payments_router
-from app.api.admin import router as admin_router
-from app.api.challenges import router as challenges_router
-from app.api.competitions import router as competitions_router
-from app.api.leaderboard import router as leaderboard_router
-from app.api.portfolio import router as portfolio_router
-from app.api.stripe_billing import router as stripe_router
-from app.api.gamification import router as gamification_router
-from app.api.coaching import router as coaching_router
-from app.api.market_data import router as market_data_router
-from app.api.alerts import router as alerts_router
-from app.api.backtesting import router as backtesting_router
-from app.api.share import router as share_router
-from app.api.paystack_billing import router as paystack_router
-from app.api.defi import router as defi_router
-from app.api.copy_trading import router as copy_trading_router
-from app.api.strategy_builder import router as strategy_builder_router
-from app.api.african_market import router as african_market_router
-from app.api.account import router as account_router
 from app.core.database import init_db
 from app.core.middleware import InputSanitizationMiddleware, LatencyGuardMiddleware
-from app.jobs.leaderboard import update_leaderboard
-from app.jobs.streaks import reset_daily_streaks
-from app.jobs.trial_reminders import process_trial_emails
-from app.jobs.onboarding_retention import (
-    run_one_hour_retention_check,
-    run_twenty_four_hour_retention_check,
-)
-from jesse_custom.engine import get_portfolio_manager
-from jesse_custom.exchange import get_paper_exchange
-from services.market_stream import MarketStreamService
+
+# Routers are registered defensively (see _register_routers) so a module that
+# needs heavy optional deps (numpy/pandas/jesse engine) is simply skipped on a
+# slim serverless host instead of breaking app import.
+_ROUTER_MODULES = [
+    "app.api.trading",
+    "app.api.auth",
+    "app.api.journal",
+    "app.api.payments",
+    "app.api.admin",
+    "app.api.challenges",
+    "app.api.competitions",
+    "app.api.leaderboard",
+    "app.api.portfolio",
+    "app.api.stripe_billing",
+    "app.api.gamification",
+    "app.api.coaching",
+    "app.api.market_data",
+    "app.api.alerts",
+    "app.api.backtesting",
+    "app.api.share",
+    "app.api.paystack_billing",
+    "app.api.defi",
+    "app.api.copy_trading",
+    "app.api.strategy_builder",
+    "app.api.african_market",
+    "app.api.account",
+]
+
+# Heavy / optional subsystems (engine, market stream, scientific stack) are
+# imported guardedly so the app boots on a slim serverless host (Vercel) that
+# does not ship numpy/pandas/ccxt or the jesse_custom engine. They are present
+# on the persistent host (VPS) where streaming + the engine actually run.
+try:
+    from jesse_custom.engine import get_portfolio_manager
+    from jesse_custom.exchange import get_paper_exchange
+    from services.market_stream import MarketStreamService
+except Exception as _engine_import_err:  # pragma: no cover
+    get_portfolio_manager = None  # type: ignore
+    get_paper_exchange = None  # type: ignore
+    MarketStreamService = None  # type: ignore
+    logger.warning(
+        f"Engine/market-stream unavailable on this host (slim mode): "
+        f"{_engine_import_err}"
+    )
 
 # Global services
-market_stream: MarketStreamService = None
+market_stream = None
 
 # Initialize Sentry
 if sentry_sdk is not None and os.getenv("SENTRY_DSN"):
@@ -120,7 +134,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Paper Exchange init failed: {e}")
 
-    if _background_workers_enabled():
+    if _background_workers_enabled() and MarketStreamService is not None:
         # Persistent host (VPS / Railway): run streaming + scheduled jobs.
         market_stream = MarketStreamService()
         asyncio.create_task(market_stream.start())
@@ -173,6 +187,10 @@ async def price_alert_check_loop():
 async def retention_check_loop():
     """Run Day 1 retention email checks every 5 minutes."""
     from app.core.database import get_session
+    from app.jobs.onboarding_retention import (
+        run_one_hour_retention_check,
+        run_twenty_four_hour_retention_check,
+    )
 
     while True:
         try:
@@ -188,6 +206,10 @@ async def retention_check_loop():
 async def scheduler_loop():
     """Run scheduled jobs"""
     from datetime import datetime, timezone
+
+    from app.jobs.leaderboard import update_leaderboard
+    from app.jobs.streaks import reset_daily_streaks
+    from app.jobs.trial_reminders import process_trial_emails
 
     _streak_reset_done_today = None
     _trial_emails_done_today = None
@@ -341,29 +363,25 @@ if cors_origin_regex:
 
 app.add_middleware(CORSMiddleware, **cors_kwargs)
 
-# Include trading routes
-app.include_router(trading_router)
-app.include_router(auth_router)
-app.include_router(journal_router)
-app.include_router(payments_router)
-app.include_router(admin_router)
-app.include_router(challenges_router)
-app.include_router(competitions_router)
-app.include_router(leaderboard_router)
-app.include_router(portfolio_router)
-app.include_router(stripe_router)
-app.include_router(gamification_router)
-app.include_router(coaching_router)
-app.include_router(market_data_router)
-app.include_router(alerts_router)
-app.include_router(backtesting_router)
-app.include_router(share_router)
-app.include_router(paystack_router)
-app.include_router(defi_router)
-app.include_router(copy_trading_router)
-app.include_router(strategy_builder_router)
-app.include_router(african_market_router)
-app.include_router(account_router)
+# Register routers defensively. On a slim serverless host, a router whose
+# module imports heavy optional deps (numpy/pandas/jesse engine) is skipped
+# rather than crashing app import; it remains available on the persistent host.
+def _register_routers() -> None:
+    loaded, skipped = 0, []
+    for mod_path in _ROUTER_MODULES:
+        try:
+            module = importlib.import_module(mod_path)
+            app.include_router(module.router)
+            loaded += 1
+        except Exception as e:
+            skipped.append((mod_path, str(e)))
+            logger.warning(f"⚠️ Router skipped: {mod_path} ({e})")
+    logger.info(
+        f"🧭 Routers registered: {loaded} loaded, {len(skipped)} skipped"
+    )
+
+
+_register_routers()
 
 
 @app.get("/health")
