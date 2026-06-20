@@ -6,9 +6,10 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.config import CoachStatus
 from app.core.database import Base
 
 if TYPE_CHECKING:
@@ -28,7 +29,14 @@ class JournalEntry(Base):
         ForeignKey("portfolios.id"),
         index=True
     )
-    
+    # School-domain owning scope. Nullable for legacy/solo journal entries.
+    student_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("students.id"),
+        nullable=True,
+        index=True,
+    )
+
     symbol: Mapped[str] = mapped_column(String(20), index=True)
     side: Mapped[str] = mapped_column(String(10)) # LONG/SHORT
     
@@ -53,3 +61,11 @@ class JournalEntry(Base):
     # Emotions/Psychology
     emotion: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     mistake: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+    # Cached Kronos forecast at entry time (educational illustration).
+    forecast_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # AI coach review — filled asynchronously by the DeepSeek coach worker.
+    coach_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    coach_status: Mapped[str] = mapped_column(
+        String(20), server_default=CoachStatus.PENDING.value, nullable=False
+    )

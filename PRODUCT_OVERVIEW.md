@@ -29,9 +29,12 @@
 * **Theme:** "Midnight Terminal" (Dark Mode Default: `bg-slate-950`).
 
 ### Infrastructure & DevOps
-* **Environment:** Docker Compose (Local), AWS ECS Fargate (Production).
-* **Storage:** AWS S3 (Historical Parquet files, Screenshots).
-* **CI/CD:** GitHub Actions -> AWS ECR -> AWS ECS.
+> **Revamp note:** the stack moved off AWS. See `REVAMP_STATUS.md` and
+> `TERMINAL_ZERO_REVAMP_HANDOFF.md` for the authoritative target.
+* **Environment:** Docker Compose (Local + Hetzner VPS). No AWS.
+* **Frontend:** Vercel. **API:** Vercel (Fluid Compute) / VPS for engines+streaming.
+* **Storage:** Cloudflare R2 (Parquet historicals, screenshots) — S3-compatible.
+* **CI/CD:** GitHub Actions -> Vercel + VPS.
 
 ## 3. CORE FEATURES & LOGIC
 
@@ -85,6 +88,6 @@
 * **Rate Limiting:** 60 requests/min per IP on API routes.
 
 ## 7. THIRD-PARTY INTEGRATIONS
-* **Payments:** Paystack (Nigeria/Global). Webhook verification required.
-* **Auth:** JWT (Self-hosted) or NextAuth.
-* **CMS:** Sanity.io (for /blog and /lessons content).
+* **Payments:** Paystack (billed at the **school** level). Webhook verification required.
+* **Auth:** Firebase Auth (ID tokens verified in the API layer, mapped to Supabase rows).
+* **CMS:** Sanity.io (optional — marketing blog only).

@@ -1,0 +1,80 @@
+# ===============================================================================
+# TERMINAL ZERO — VPS production stack (Hetzner + Docker Compose)
+# ===============================================================================
+# The VPS runs the API + engines + workers + Redis. The app database is Supabase
+# (external) and the frontend is on Vercel, so neither is defined here.
+#
+# Usage (on the VPS):
+#   cp .env.example .env        # fill Supabase, Firebase, R2, Redis, Paystack
+#   docker compose -f docker-compose.vps.yml up -d --build
+# ===============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Redis — cache + pub/sub for the engines and the streaming layer
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # FastAPI API + background workers (persistent host → streaming enabled)
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      # App database lives on Supabase (set DATABASE_URL in .env).
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+      - ENABLE_BACKGROUND_WORKERS=true
+      # Identity (Firebase) + storage (R2) + payments (Paystack)
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET=${R2_BUCKET:-terminal-zero}
+      - R2_PUBLIC_BASE_URL=${R2_PUBLIC_BASE_URL}
+      - PAYSTACK_SECRET_KEY=${PAYSTACK_SECRET_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-https://terminalzero.vercel.app}
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Engines + workers (matching/replay/synthetic, Kronos, DeepSeek coach) land
+  # here in later phases. They share Redis with the API. Placeholder for now.
+  # ---------------------------------------------------------------------------
+  # engine:
+  #   build: { context: ./backend, dockerfile: Dockerfile }
+  #   command: python -m engines.run
+  #   environment: [ ... same as api ... ]
+  #   depends_on: { redis: { condition: service_healthy } }
+  #   restart: unless-stopped
+
+volumes:
+  redis_data:

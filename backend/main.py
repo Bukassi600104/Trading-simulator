@@ -77,6 +77,21 @@ def convert_bybit_symbol(bybit_symbol: str) -> str:
     return bybit_symbol
 
 
+def _background_workers_enabled() -> bool:
+    """Whether this process should run persistent background tasks.
+
+    Persistent loops + WebSocket streaming require a long-lived host (the VPS,
+    or Railway today). They cannot run on serverless platforms like Vercel,
+    where each invocation is ephemeral. Auto-disabled on Vercel; overridable
+    via ENABLE_BACKGROUND_WORKERS.
+    """
+    explicit = os.getenv("ENABLE_BACKGROUND_WORKERS")
+    if explicit is not None:
+        return explicit.strip().lower() in ("1", "true", "yes", "on")
+    # Default: off on Vercel (serverless), on everywhere else.
+    return os.getenv("VERCEL") is None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle manager - resilient to missing services"""
@@ -105,26 +120,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Paper Exchange init failed: {e}")
 
-    # Initialize market stream service
-    market_stream = MarketStreamService()
-
-    # Start the Bybit WebSocket connection
-    asyncio.create_task(market_stream.start())
-
-    # Start price update forwarder
-    asyncio.create_task(price_update_forwarder())
-
-    # Start scheduled jobs (non-fatal if Redis is unavailable)
-    asyncio.create_task(scheduler_loop())
-
-    # Delayed price refresh every 15 minutes
-    asyncio.create_task(delayed_price_refresh_loop())
-
-    # Price alert checker every 60 seconds
-    asyncio.create_task(price_alert_check_loop())
-
-    # Day 1 retention checks every 5 minutes
-    asyncio.create_task(retention_check_loop())
+    if _background_workers_enabled():
+        # Persistent host (VPS / Railway): run streaming + scheduled jobs.
+        market_stream = MarketStreamService()
+        asyncio.create_task(market_stream.start())
+        asyncio.create_task(price_update_forwarder())
+        asyncio.create_task(scheduler_loop())
+        asyncio.create_task(delayed_price_refresh_loop())
+        asyncio.create_task(price_alert_check_loop())
+        asyncio.create_task(retention_check_loop())
+        logger.info("🔁 Background workers started")
+    else:
+        # Serverless (Vercel): REST API only. Streaming/engines live on the
+        # persistent host. Skip long-lived loops and WebSocket subscriptions.
+        logger.info(
+            "⏸️  Background workers disabled (serverless mode) — "
+            "REST API only; streaming runs on the persistent host"
+        )
 
     yield
 
@@ -492,8 +504,15 @@ async def ticker_websocket(websocket: WebSocket, symbol: str, interval: str = "1
         interval: Timeframe - 1, 3, 5, 15, 30, 60, 120, 240, D, W (default: 1)
     """
     await websocket.accept()
+
+    # Streaming requires a persistent host. On serverless there is no
+    # market_stream; close cleanly so the client can fall back / retry elsewhere.
+    if market_stream is None:
+        await websocket.close(code=1013, reason="Streaming unavailable on this host")
+        return
+
     logger.info(f"📡 Client connected for {symbol} ({interval}m)")
-    
+
     # Create a queue for this client
     client_queue: asyncio.Queue = asyncio.Queue()
     

@@ -118,6 +118,8 @@ class UserResponse(BaseModel):
     id: str
     email: str
     username: Optional[str] = None
+    display_name: Optional[str] = None
+    role: str = "solo_learner"
     onboarding_stage: int = 0
     tier: str
     is_active: bool
@@ -141,6 +143,8 @@ def _user_response(user: User) -> UserResponse:
         id=str(user.id),
         email=user.email,
         username=user.username,
+        display_name=getattr(user, "display_name", None),
+        role=getattr(user, "role", None) or "solo_learner",
         onboarding_stage=user.onboarding_stage,
         tier=user.tier.value,
         is_active=user.is_active,
@@ -494,6 +498,65 @@ async def sync_user(
         await session.commit()
         # Fire-and-forget welcome email
         asyncio.create_task(send_welcome_email(user.email, user.email.split('@')[0]))
+
+    return _user_response(user)
+
+
+@router.post("/firebase/sync", response_model=UserResponse)
+async def firebase_sync(
+    token_data: TokenData = Depends(require_auth),
+    session: AsyncSession = Depends(get_session),
+) -> UserResponse:
+    """Provision/refresh the Supabase ``User`` row for a Firebase identity.
+
+    Called by the frontend after a Firebase sign-in/sign-up. Idempotent: the
+    internal user id is derived deterministically from the Firebase UID, so
+    repeated calls converge on the same row. This is the endpoint that
+    satisfies "a user signs up via Firebase and a matching Supabase row exists".
+    """
+    if token_data.provider != "firebase":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Not a Firebase-authenticated request",
+        )
+
+    uid = uuid.UUID(token_data.user_id)
+    email = token_data.email or f"{token_data.firebase_uid}@firebase.local"
+
+    result = await session.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        user = User(
+            id=uid,
+            email=email,
+            firebase_uid=token_data.firebase_uid,
+            display_name=token_data.display_name,
+            role="solo_learner",
+            hashed_password="managed-by-firebase",
+            tier=UserTier.FREE,
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        user.trial_end_date = datetime.now(timezone.utc) + timedelta(days=14)
+        await session.commit()
+        display_name = token_data.display_name or email.split("@")[0]
+        asyncio.create_task(send_welcome_email(user.email, display_name))
+    else:
+        # Keep the Firebase linkage and profile fields fresh.
+        changed = False
+        if user.firebase_uid != token_data.firebase_uid:
+            user.firebase_uid = token_data.firebase_uid
+            changed = True
+        if token_data.display_name and user.display_name != token_data.display_name:
+            user.display_name = token_data.display_name
+            changed = True
+        if changed:
+            await session.commit()
+            await session.refresh(user)
 
     return _user_response(user)
 

@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -32,7 +32,14 @@ class Portfolio(Base):
         ForeignKey("users.id"),
         index=True
     )
-    
+    # School-domain owning scope. Nullable for legacy/solo portfolios.
+    student_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("students.id"),
+        nullable=True,
+        index=True,
+    )
+
     # Balance tracking
     balance: Mapped[Decimal] = mapped_column(
         Numeric(precision=18, scale=8),

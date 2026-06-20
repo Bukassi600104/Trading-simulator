@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from app.core.config import UserTier
+from app.core.config import UserRole, UserTier
 from app.core.database import Base
 
 # Onboarding stages
@@ -32,6 +32,18 @@ class User(Base):
         default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # Firebase UID — identity now lives in Firebase Auth, verified in the API
+    # layer and mapped to this row. Nullable for legacy (Supabase/local) users.
+    firebase_uid: Mapped[Optional[str]] = mapped_column(
+        String(128), unique=True, index=True, nullable=True
+    )
+    display_name: Mapped[Optional[str]] = mapped_column(
+        String(120), nullable=True
+    )
+    # School-domain role. Stored as a plain string (UserRole values).
+    role: Mapped[str] = mapped_column(
+        String(20), server_default=UserRole.SOLO_LEARNER.value, nullable=False
+    )
     username: Mapped[Optional[str]] = mapped_column(
         String(50), unique=True, index=True, nullable=True
     )

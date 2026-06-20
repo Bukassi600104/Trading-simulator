@@ -31,7 +31,14 @@ class Order(Base):
         ForeignKey("portfolios.id"),
         index=True
     )
-    
+    # School-domain owning scope. Nullable for legacy/solo orders.
+    student_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("students.id"),
+        nullable=True,
+        index=True,
+    )
+
     # Order details
     symbol: Mapped[str] = mapped_column(String(20), index=True)  # e.g., "BTC-USDT"
     side: Mapped[OrderSide] = mapped_column(SQLEnum(OrderSide))
@@ -51,7 +58,16 @@ class Order(Base):
         Numeric(precision=18, scale=8),
         nullable=True
     )
-    
+    # Simulated execution detail recorded by the matching engine.
+    fee: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=8),
+        default=Decimal("0")
+    )
+    slippage: Mapped[Decimal] = mapped_column(
+        Numeric(precision=18, scale=8),
+        default=Decimal("0")
+    )
+
     # Status
     status: Mapped[OrderStatus] = mapped_column(
         SQLEnum(OrderStatus),

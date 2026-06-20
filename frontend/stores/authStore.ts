@@ -8,7 +8,15 @@
  */
 
 import { API_BASE } from '@/lib/runtimeConfig';
+import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { supabase } from '@/lib/supabase';
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  updateProfile,
+} from 'firebase/auth';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -92,6 +100,27 @@ async function syncUserWithBackend(accessToken: string): Promise<User> {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await safeJson(response);
+    throw new Error(errorData?.detail || `Backend sync failed (${response.status})`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * After a Firebase sign-in/sign-up, verify the ID token on the API and ensure
+ * a matching Supabase user row exists.
+ */
+async function syncFirebaseUserWithBackend(idToken: string): Promise<User> {
+  const response = await fetchWithTimeout(`${API_BASE}/api/auth/firebase/sync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
     },
   });
 
@@ -426,15 +455,130 @@ function createSupabaseActions(set: any, get: any) {
 }
 
 // ---------------------------------------------------------------------------
+// Firebase auth actions (used when Firebase is configured — the new default)
+// ---------------------------------------------------------------------------
+
+function createFirebaseActions(set: any, get: any) {
+  const fb = firebaseAuth!; // guaranteed non-null when selected
+
+  return {
+    login: async (email: string, password: string): Promise<boolean> => {
+      set({ isLoading: true, error: null });
+      try {
+        const cred = await signInWithEmailAndPassword(fb, email, password);
+        const idToken = await cred.user.getIdToken();
+        const user = await syncFirebaseUserWithBackend(idToken);
+        set({ user, token: idToken, isAuthenticated: true, isLoading: false, error: null });
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Login failed';
+        set({ isLoading: false, error: message, isAuthenticated: false });
+        return false;
+      }
+    },
+
+    register: async (email: string, password: string, username?: string): Promise<boolean> => {
+      set({ isLoading: true, error: null });
+      try {
+        const cred = await createUserWithEmailAndPassword(fb, email, password);
+        if (username) {
+          try { await updateProfile(cred.user, { displayName: username }); } catch { /* non-critical */ }
+        }
+        const idToken = await cred.user.getIdToken(true);
+        const user = await syncFirebaseUserWithBackend(idToken);
+        if (username) {
+          try {
+            await fetchWithTimeout(`${API_BASE}/api/auth/me/onboarding`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({ stage: 0, username }),
+            });
+          } catch { /* non-critical */ }
+        }
+        set({ user, token: idToken, isAuthenticated: true, isLoading: false, error: null });
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Registration failed';
+        set({ isLoading: false, error: message, isAuthenticated: false });
+        return false;
+      }
+    },
+
+    requestPasswordReset: async (email: string) => {
+      set({ isLoading: true, error: null });
+      try {
+        await sendPasswordResetEmail(fb, email);
+        set({ isLoading: false, error: null });
+        return { message: 'Password reset email sent. Check your inbox.' };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Request failed';
+        set({ isLoading: false, error: message });
+        return null;
+      }
+    },
+
+    resetPassword: async (_token: string, _newPassword: string): Promise<boolean> => {
+      // Firebase password resets are completed via the emailed action link,
+      // not from the app. Surface a helpful message.
+      set({
+        isLoading: false,
+        error: 'Use the password-reset link sent to your email to set a new password.',
+      });
+      return false;
+    },
+
+    logout: () => {
+      firebaseSignOut(fb).catch(() => { /* ignore */ });
+      set({ user: null, token: null, isAuthenticated: false, error: null });
+    },
+
+    checkAuth: async (): Promise<boolean> => {
+      try {
+        const current = fb.currentUser;
+        if (current) {
+          const idToken = await current.getIdToken();
+          const { user } = get();
+          const synced = user ?? (await syncFirebaseUserWithBackend(idToken));
+          set({ user: synced, token: idToken, isAuthenticated: true });
+          return true;
+        }
+        // Firebase not yet rehydrated — fall back to the persisted token.
+        const { token } = get();
+        if (!token) {
+          set({ isAuthenticated: false });
+          return false;
+        }
+        const response = await fetchWithTimeout(`${API_BASE}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }, 15000);
+        if (!response.ok) {
+          set({ user: null, token: null, isAuthenticated: false });
+          return false;
+        }
+        const user = await response.json();
+        set({ user, isAuthenticated: true });
+        return true;
+      } catch {
+        set({ user: null, token: null, isAuthenticated: false });
+        return false;
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => {
-      const authActions = supabase
-        ? createSupabaseActions(set, get)
-        : createFallbackActions(set, get);
+      // Priority: Firebase (new identity) > Supabase (transition) > local fallback.
+      const authActions = isFirebaseConfigured
+        ? createFirebaseActions(set, get)
+        : supabase
+          ? createSupabaseActions(set, get)
+          : createFallbackActions(set, get);
 
       return {
         // Initial state

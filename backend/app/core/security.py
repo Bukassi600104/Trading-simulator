@@ -102,10 +102,18 @@ async def get_redis():
 # ---------------------------------------------------------------------------
 
 class TokenData(BaseModel):
-    """Data contained in JWT token"""
+    """Data contained in a verified auth token.
+
+    ``user_id`` is always the internal Supabase ``User`` UUID. For Firebase
+    tokens it is derived deterministically from ``firebase_uid``.
+    """
     user_id: str
     email: Optional[str] = None
     exp: Optional[datetime] = None
+    # Populated only for Firebase-issued tokens.
+    firebase_uid: Optional[str] = None
+    display_name: Optional[str] = None
+    provider: str = "supabase"
 
 
 class Token(BaseModel):
@@ -204,11 +212,34 @@ def _get_jwt_secret() -> str:
 
 
 def decode_access_token(token: str) -> Optional[TokenData]:
-    """Decode and validate a JWT access token.
+    """Decode and validate an auth token.
 
-    Supports both ES256 (Supabase asymmetric keys, current default) and
-    HS256 (legacy JWT secret / demo tokens).
+    Resolution order:
+    1. Firebase ID tokens (RS256, Google-signed) — the new identity provider.
+    2. ES256 (Supabase asymmetric keys) — legacy/transition.
+    3. HS256 (legacy JWT secret / demo tokens).
     """
+    # 1. Firebase identity (verified against Google's public keys).
+    from app.core.firebase_auth import (
+        FIREBASE_PROJECT_ID,
+        firebase_uid_to_user_uuid,
+        looks_like_firebase_token,
+        verify_id_token,
+    )
+
+    if FIREBASE_PROJECT_ID and looks_like_firebase_token(token):
+        identity = verify_id_token(token)
+        if identity is None:
+            return None
+        internal_uuid = firebase_uid_to_user_uuid(identity.uid)
+        return TokenData(
+            user_id=str(internal_uuid),
+            email=identity.email,
+            firebase_uid=identity.uid,
+            display_name=identity.name,
+            provider="firebase",
+        )
+
     alg = _get_jwt_alg(token)
 
     if alg == "ES256":

@@ -31,7 +31,10 @@ ccxt>=4.2.0                 # Universal crypto exchange API wrapper (critical)
 # NOTE: TA-Lib removed (unused here; avoids native build failures)
 
 # --- Supabase ---
-supabase>=2.0.0             # Supabase Python client (auth, database)
+supabase>=2.0.0             # Supabase Python client (relational app data)
+
+# --- Object storage (Cloudflare R2, S3-compatible) ---
+boto3>=1.34.0              # R2 client for Parquet historicals + screenshots
 
 # --- Testing ---
 pytest>=8.1.1               # Testing framework

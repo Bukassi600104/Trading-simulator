@@ -31,7 +31,14 @@ class Position(Base):
         ForeignKey("portfolios.id"),
         index=True
     )
-    
+    # School-domain owning scope. Nullable for legacy/solo positions.
+    student_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("students.id"),
+        nullable=True,
+        index=True,
+    )
+
     # Position details
     symbol: Mapped[str] = mapped_column(String(20), index=True)
     side: Mapped[PositionSide] = mapped_column(
