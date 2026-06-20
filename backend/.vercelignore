@@ -1,15 +1,19 @@
 # Keep the serverless function small: exclude the heavy engine + non-API code.
 # These run on the persistent host (VPS), never on Vercel serverless.
-jesse_custom/
-services/
-tests/
-alembic/
-alembic.ini
+#
+# IMPORTANT: leading-slash anchors the pattern to the project root, so
+# `/services/` excludes the top-level engine `backend/services/` but NOT the
+# API's `backend/app/services/` (email, delayed prices) that routers import.
+/jesse_custom/
+/services/
+/tests/
+/alembic/
+/alembic.ini
 **/__pycache__/
 *.pyc
 .localstorage/
-requirements-engine.txt
+/requirements-engine.txt
 # Tooling config only (poetry/ruff/black/pytest). Excluded so Vercel's Python
 # builder uses requirements.txt instead of trying `uv lock` on a non-PEP-621
 # pyproject.toml.
-pyproject.toml
+/pyproject.toml
