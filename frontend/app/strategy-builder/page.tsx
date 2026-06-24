@@ -87,7 +87,7 @@ export default function StrategyBuilderPage() {
       fetchPublic();
     };
     run();
-  }, [checkAuth, router]);
+  }, [checkAuth, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchStrategies() {
     if (!token) return;

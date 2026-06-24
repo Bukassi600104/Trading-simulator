@@ -54,7 +54,7 @@ export default function CopyTradingPage() {
       fetchAll();
     };
     run();
-  }, [checkAuth, router]);
+  }, [checkAuth, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchAll() {
     fetchTopTraders();

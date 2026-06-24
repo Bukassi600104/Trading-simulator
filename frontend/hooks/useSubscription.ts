@@ -63,7 +63,7 @@ export function useSubscription(): SubscriptionData {
 
   useEffect(() => {
     fetchSubscription();
-  }, [token]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     plan,
